@@ -16,14 +16,14 @@
 
 ```sh
 git clone https://github.com/Aapng-cmd/code-relations-analyzer.git
-cd code-relations-analyzer/build/
+cd code-relations-analyzer/
 cmake . && cmake --build .
 ```
 
 ### Запуск программы
 
 ```sh
-./build/code-relations-analyzer
+./code-relations-analyzer
 ```
 
 ## История версий
