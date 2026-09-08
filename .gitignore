@@ -1,5 +1,2 @@
 test/
-CMakeFiles/
-*autogen*
-code-relations-analyzer
 __pycache__/
