@@ -14,15 +14,16 @@
 
 ### Установка
 
-```sh
+```bash
 git clone https://github.com/Aapng-cmd/code-relations-analyzer.git
-cd code-relations-analyzer/build/
+cd code-relations-analyzer/
+mkdir build && cd build
 cmake .. && cmake --build .
 ```
 
 ### Запуск программы
 
-```sh
+```bash
 ./build/code-relations-analyzer
 ```
 
