@@ -103,6 +103,14 @@ NodeTint Theme::languageTint(SourceLanguage language)
         return dark ? makeTint(QColor("#4a3224"), QColor("#e09b72")) : makeTint(QColor("#f5c9b0"), QColor("#c25b2a"));
     case SourceLanguage::Go:
         return dark ? makeTint(QColor("#1c3d38"), QColor("#6dc4b3")) : makeTint(QColor("#bfe8dc"), QColor("#2a8f7a"));
+    case SourceLanguage::Php:
+        return dark ? makeTint(QColor("#35284a"), QColor("#c4b0ff")) : makeTint(QColor("#ddd0f8"), QColor("#6a40c0"));
+    case SourceLanguage::Html:
+        return dark ? makeTint(QColor("#4a2430"), QColor("#f0a0b8")) : makeTint(QColor("#f4b8c8"), QColor("#c03860"));
+    case SourceLanguage::Css:
+        return dark ? makeTint(QColor("#1e3848"), QColor("#7ec8e8")) : makeTint(QColor("#c5e4f4"), QColor("#2a7aa0"));
+    case SourceLanguage::JavaScript:
+        return dark ? makeTint(QColor("#4a4418"), QColor("#e8d060")) : makeTint(QColor("#f3e6a0"), QColor("#9a8020"));
     default:
         return defaultNodeTint();
     }

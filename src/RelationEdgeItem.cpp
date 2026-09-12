@@ -4,6 +4,7 @@
 #include "UiConfig.h"
 
 #include <QCursor>
+#include <QGraphicsItem>
 #include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
@@ -56,6 +57,9 @@ RelationEdgeItem::RelationEdgeItem(FileNodeItem *from, FileNodeItem *to, const F
 {
     setZValue(0);
     setFlag(ItemIsSelectable, true);
+    setPen(Qt::NoPen);
+    setBrush(Qt::NoBrush);
+    setCacheMode(QGraphicsItem::NoCache);
     setCursor(QCursor(Qt::PointingHandCursor));
     setAcceptHoverEvents(true);
     updatePath();
@@ -76,16 +80,6 @@ void RelationEdgeItem::updateVisibility()
 void RelationEdgeItem::invalidateShape()
 {
     m_shapeDirty = true;
-    prepareGeometryChange();
-}
-
-QString RelationEdgeItem::labelText() const
-{
-    if (m_relation.fictitious && !m_relation.comment.isEmpty())
-        return m_relation.comment;
-    if (m_relation.fictitious)
-        return QStringLiteral("%1 ⇢ %2").arg(m_relation.fromFileName, m_relation.toFileName);
-    return QStringLiteral("%1 → %2").arg(m_relation.fromFileName, m_relation.toFileName);
 }
 
 void RelationEdgeItem::updatePath()
@@ -107,19 +101,29 @@ void RelationEdgeItem::updatePath()
     const QPointF c1 = a + delta / 3.0 + normal * m_curveOffset;
     const QPointF c2 = a + delta * (2.0 / 3.0) + normal * m_curveOffset;
 
+    prepareGeometryChange();
     QPainterPath path(a);
     path.cubicTo(c1, c2, b);
-    invalidateShape();
+    m_shapeDirty = true;
     setPath(path);
 }
 
 QRectF RelationEdgeItem::boundingRect() const
 {
     const UiConfig &u = UiConfig::get();
-    qreal extra = qMax(u.edgeHitWidth, u.edgeArrowSize) * 0.5 + 4;
-    if (m_hovered || isSelected())
+    qreal extra = qMax(u.edgeHitWidth, u.edgeArrowSize) * 0.5 + 16;
+    if (m_hovered || isSelected() || !m_labelsOnDemand)
         extra += 28;
-    return path().boundingRect().adjusted(-extra, -extra, extra, extra);
+    return path().controlPointRect().adjusted(-extra, -extra, extra, extra);
+}
+
+QString RelationEdgeItem::labelText() const
+{
+    if (m_relation.fictitious && !m_relation.comment.isEmpty())
+        return m_relation.comment;
+    if (m_relation.fictitious)
+        return QStringLiteral("%1 ⇢ %2").arg(m_relation.fromFileName, m_relation.toFileName);
+    return QStringLiteral("%1 → %2").arg(m_relation.fromFileName, m_relation.toFileName);
 }
 
 QPainterPath RelationEdgeItem::shape() const

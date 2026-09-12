@@ -21,6 +21,7 @@ public:
     QPointF center() const;
     bool isGraphVisible() const { return !m_manualHidden && !m_autoHidden; }
     bool isManuallyHidden() const { return m_manualHidden; }
+    bool isPinnedVisible() const { return m_pinnedVisible && !m_manualHidden; }
     void setAutoHidden(bool hidden, bool animate = true);
     void toggleHidden();
     qreal eyeClose() const { return m_eyeClose; }
@@ -34,6 +35,7 @@ signals:
     void visibilityToggled();
 
 protected:
+    QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
@@ -54,6 +56,7 @@ private:
     NodeTint m_tint;
     bool m_manualHidden = false;
     bool m_autoHidden = false;
+    bool m_pinnedVisible = false;
     qreal m_eyeClose = 0;
     qreal m_fade = 1;
     QParallelAnimationGroup *m_anim = nullptr;

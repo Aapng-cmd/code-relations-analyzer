@@ -938,6 +938,5 @@ AnalysisResult PythonAnalyzer::analyzeDirectory(const QString &rootDir)
         result.relations.push_back(rel);
     }
 
-    AnalysisUtil::finalize(result);
     return result;
 }

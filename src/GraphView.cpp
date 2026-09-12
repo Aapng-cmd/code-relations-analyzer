@@ -42,10 +42,8 @@ GraphView::GraphView(QWidget *parent)
     setRenderHint(QPainter::Antialiasing);
     setRenderHint(QPainter::TextAntialiasing);
     setDragMode(QGraphicsView::ScrollHandDrag);
-    setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
+    setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
     setOptimizationFlag(QGraphicsView::DontSavePainterState, true);
-    setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);
-    setCacheMode(QGraphicsView::CacheBackground);
     setBackgroundBrush(Theme::colors().graphBg);
     setMinimumSize(u.graphMinWidth, u.graphMinHeight);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
@@ -111,6 +109,9 @@ void GraphView::setAnalysis(const AnalysisResult &result, const QString &rootDir
     m_full = result;
     m_notes.setRoot(rootDir);
     bool filterOk = m_notes.languageFilter() == QLatin1String("all");
+    refreshWebLinks();
+    if (m_notes.languageFilter() == QLatin1String("web") && hasWebFilter())
+        filterOk = true;
     for (SourceLanguage language : presentLanguages()) {
         if (AnalysisUtil::languageKey(language) == m_notes.languageFilter())
             filterOk = true;
@@ -140,6 +141,36 @@ QVector<SourceLanguage> GraphView::presentLanguages() const
     return out;
 }
 
+bool GraphView::hasWebFilter() const
+{
+    for (const FileNode &file : m_full.files) {
+        if (m_notes.isDeleted(file.path))
+            continue;
+        if (AnalysisUtil::isWebFile(file.path) || m_webLinked.contains(file.path))
+            return true;
+    }
+    return false;
+}
+
+void GraphView::refreshWebLinks()
+{
+    m_webLinked.clear();
+    QSet<QString> webFiles;
+    for (const FileNode &file : m_full.files) {
+        if (m_notes.isDeleted(file.path))
+            continue;
+        if (AnalysisUtil::isWebFile(file.path))
+            webFiles.insert(file.path);
+    }
+    for (const FileRelation &rel : m_full.relations) {
+        const bool fromWeb = webFiles.contains(rel.fromPath);
+        const bool toWeb = webFiles.contains(rel.toPath);
+        if (fromWeb == toWeb)
+            continue;
+        m_webLinked.insert(fromWeb ? rel.toPath : rel.fromPath);
+    }
+}
+
 QString GraphView::languageFilter() const
 {
     return m_notes.languageFilter();
@@ -161,12 +192,25 @@ bool GraphView::filePassesFilter(const FileNode &file) const
     const QString filter = m_notes.languageFilter();
     if (filter.isEmpty() || filter == QLatin1String("all"))
         return true;
+    if (filter == QLatin1String("web"))
+        return AnalysisUtil::isWebFile(file.path) || m_webLinked.contains(file.path);
     return AnalysisUtil::languageKey(file.language) == filter;
 }
 
 void GraphView::syncColorMode()
 {
-    m_colorByLanguage = m_notes.languageFilter() == QLatin1String("all") && presentLanguages().size() > 1;
+    const QString filter = m_notes.languageFilter();
+    if (filter != QLatin1String("all") && filter != QLatin1String("web")) {
+        m_colorByLanguage = false;
+        return;
+    }
+    QSet<int> langs;
+    for (const FileNode &file : m_full.files) {
+        if (!filePassesFilter(file) || file.language == SourceLanguage::Unknown)
+            continue;
+        langs.insert(static_cast<int>(file.language));
+    }
+    m_colorByLanguage = langs.size() > 1;
 }
 
 NodeTint GraphView::tintFor(const FileNode &file) const
@@ -223,6 +267,7 @@ void GraphView::rebuildGraph(bool resetView)
     m_scene->clear();
     m_nodes.clear();
     m_edges.clear();
+    refreshWebLinks();
     syncColorMode();
 
     AnalysisResult visible;
@@ -333,7 +378,7 @@ void GraphView::updateSceneExtents()
 
 void GraphView::onNodeMoved()
 {
-    if (m_layoutBusy || !m_scene)
+    if (m_layoutBusy || !m_scene || m_draggingNode)
         return;
     auto *node = qobject_cast<FileNodeItem *>(sender());
     if (!node)
@@ -410,7 +455,7 @@ void GraphView::recomputeAutoHidden()
     for (FileNodeItem *n : m_nodes) {
         if (!n)
             continue;
-        if (n->isManuallyHidden()) {
+        if (n->isManuallyHidden() || n->isPinnedVisible()) {
             n->setAutoHidden(false, false);
             continue;
         }
@@ -648,17 +693,27 @@ void GraphView::mousePressEvent(QMouseEvent *event)
         event->accept();
         return;
     }
-    if (event->button() == Qt::LeftButton && !nodeAtViewPos(event->pos()) && !edgeFromItem(itemAt(event->pos())))
-        setFastRender(true);
+    if (event->button() == Qt::LeftButton) {
+        if (nodeAtViewPos(event->pos())) {
+            m_draggingNode = true;
+            setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+        } else if (!edgeFromItem(itemAt(event->pos())))
+            setFastRender(true);
+    }
     QGraphicsView::mousePressEvent(event);
 }
 
 void GraphView::mouseReleaseEvent(QMouseEvent *event)
 {
     QGraphicsView::mouseReleaseEvent(event);
+    m_draggingNode = false;
     if (m_fastRender)
         setFastRender(false);
     updateSceneExtents();
+    if (m_scene)
+        m_scene->invalidate();
+    viewport()->repaint();
+    setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
 }
 
 void GraphView::showNodeMenu(FileNodeItem *node, const QPoint &globalPos)

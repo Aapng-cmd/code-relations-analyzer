@@ -1,17 +1,18 @@
 #include "ProjectAnalyzer.h"
+
 #include "AnalysisUtil.h"
-#include "CppAnalyzer.h"
-#include "GoAnalyzer.h"
-#include "JavaAnalyzer.h"
-#include "PythonAnalyzer.h"
+#include "PluginHost.h"
+
+#include <QDebug>
 
 AnalysisResult ProjectAnalyzer::analyzeDirectory(const QString &rootDir)
 {
-    AnalysisResult result = AnalysisUtil::merge(PythonAnalyzer::analyzeDirectory(rootDir),
-                                                CppAnalyzer::analyzeDirectory(rootDir));
-    result = AnalysisUtil::merge(result, JavaAnalyzer::analyzeDirectory(rootDir));
-    result = AnalysisUtil::merge(result, GoAnalyzer::analyzeDirectory(rootDir));
+    PluginHost::instance().load();
+    if (PluginHost::instance().loadedIds().isEmpty())
+        qWarning("No analyzer plugins found (expected libcra-*.so in a plugins/ directory next to the executable)");
+    AnalysisResult result = PluginHost::instance().analyzeDirectory(rootDir);
     for (FileNode &file : result.files)
         file.language = AnalysisUtil::languageOf(file.path);
+    AnalysisUtil::finalize(result);
     return result;
 }

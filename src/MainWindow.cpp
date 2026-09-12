@@ -135,6 +135,8 @@ void MainWindow::fillViewMenu(QMenu *menu)
         group->addAction(action);
     };
     addLang(QStringLiteral("all"), I18n::t(QStringLiteral("lang_all")));
+    if (m_graph->hasWebFilter())
+        addLang(QStringLiteral("web"), I18n::t(QStringLiteral("lang_web")));
     for (SourceLanguage language : langs)
             addLang(AnalysisUtil::languageKey(language), I18n::languageName(language));
     connect(group, &QActionGroup::triggered, this, [this](QAction *action) {

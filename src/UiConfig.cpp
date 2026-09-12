@@ -41,11 +41,13 @@ void UiConfig::load()
                                      << QStringLiteral("CMakeFiles") << QStringLiteral(".cache")
                                      << QStringLiteral("cmake-build-debug") << QStringLiteral("cmake-build-release")
                                      << QStringLiteral("target") << QStringLiteral(".gradle") << QStringLiteral("vendor")
-                                     << QStringLiteral("node_modules");
+                                     << QStringLiteral("node_modules") << QStringLiteral("bower_components");
     cfg.scanGlobs = QStringList() << QStringLiteral("*.py") << QStringLiteral("*.c") << QStringLiteral("*.cc")
                                  << QStringLiteral("*.cpp") << QStringLiteral("*.cxx") << QStringLiteral("*.h")
                                  << QStringLiteral("*.hh") << QStringLiteral("*.hpp") << QStringLiteral("*.hxx")
-                                 << QStringLiteral("*.java") << QStringLiteral("*.go");
+                                 << QStringLiteral("*.java") << QStringLiteral("*.go") << QStringLiteral("*.php")
+                                 << QStringLiteral("*.phtml") << QStringLiteral("*.html") << QStringLiteral("*.htm")
+                                 << QStringLiteral("*.css") << QStringLiteral("*.js") << QStringLiteral("*.mjs");
 
     const QString path = ConfigPaths::findFile(QStringLiteral("config.json"));
     if (path.isEmpty())

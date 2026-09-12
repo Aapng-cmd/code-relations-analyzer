@@ -858,6 +858,5 @@ AnalysisResult JavaAnalyzer::analyzeDirectory(const QString &rootDir)
             std::sort(s.useLines.begin(), s.useLines.end());
         result.relations.push_back(rel);
     }
-    AnalysisUtil::finalize(result);
     return result;
 }

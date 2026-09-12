@@ -5,6 +5,7 @@
 #include "Theme.h"
 
 #include <QGraphicsView>
+#include <QSet>
 #include <QVector>
 
 class FileNodeItem;
@@ -22,6 +23,7 @@ public:
     void applyTheme();
 
     QVector<SourceLanguage> presentLanguages() const;
+    bool hasWebFilter() const;
     QString languageFilter() const;
     void setLanguageFilter(const QString &key);
     void chooseVisibleFiles();
@@ -54,6 +56,7 @@ private:
     void refreshNodeColors();
     void zoomBy(qreal factor);
     bool filePassesFilter(const FileNode &file) const;
+    void refreshWebLinks();
     bool useLanguageTints() const { return m_colorByLanguage; }
     NodeTint tintFor(const FileNode &file) const;
     NodeTint unusedGroupTint() const;
@@ -85,4 +88,6 @@ private:
     bool m_layoutBusy = false;
     bool m_colorByLanguage = false;
     bool m_fastRender = false;
+    bool m_draggingNode = false;
+    QSet<QString> m_webLinked;
 };

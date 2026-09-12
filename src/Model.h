@@ -6,7 +6,7 @@
 
 enum class SymbolKind { Class, Function, Variable };
 
-enum class SourceLanguage { Unknown, Python, Cpp, Java, Go };
+enum class SourceLanguage { Unknown, Python, Cpp, Java, Go, Php, Html, Css, JavaScript };
 
 struct DefinedSymbol {
     QString name;

@@ -8,6 +8,7 @@
 #include <QEasingCurve>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QGraphicsItem>
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -15,6 +16,7 @@
 #include <QPropertyAnimation>
 #include <QStyle>
 #include <QStyleOptionGraphicsItem>
+#include <QtGlobal>
 #include <QtMath>
 
 namespace {
@@ -99,7 +101,7 @@ FileNodeItem::FileNodeItem(const FileNode &file, QGraphicsItem *parent)
     setCursor(QCursor(Qt::OpenHandCursor));
     m_tint = Theme::defaultNodeTint();
     m_fade = UiConfig::get().visibleOpacity;
-    setOpacity(m_fade);
+    setCacheMode(QGraphicsItem::NoCache);
     updateToolTip();
     m_eyeHit = new EyeHitItem(this);
     updateEyeHitItem();
@@ -133,6 +135,11 @@ QPointF FileNodeItem::center() const
     return mapToScene(rect().center());
 }
 
+QRectF FileNodeItem::boundingRect() const
+{
+    return rect().adjusted(-12, -12, 12, 12);
+}
+
 QRectF FileNodeItem::eyeVisualRect() const
 {
     const UiConfig &u = UiConfig::get();
@@ -162,8 +169,10 @@ void FileNodeItem::setEyeClose(qreal value)
 
 void FileNodeItem::setFade(qreal value)
 {
+    if (qFuzzyCompare(m_fade, value))
+        return;
     m_fade = value;
-    setOpacity(value);
+    update();
 }
 
 void FileNodeItem::applyInteractionState()
@@ -234,6 +243,8 @@ void FileNodeItem::animateHiddenState()
 
 void FileNodeItem::setAutoHidden(bool hidden, bool animate)
 {
+    if (m_pinnedVisible || m_manualHidden)
+        hidden = false;
     if (m_autoHidden == hidden)
         return;
     m_autoHidden = hidden;
@@ -242,9 +253,14 @@ void FileNodeItem::setAutoHidden(bool hidden, bool animate)
 
 void FileNodeItem::toggleHidden()
 {
-    if (m_autoHidden)
-        return;
-    m_manualHidden = !m_manualHidden;
+    if (m_manualHidden || m_autoHidden) {
+        m_manualHidden = false;
+        m_autoHidden = false;
+        m_pinnedVisible = true;
+    } else {
+        m_pinnedVisible = false;
+        m_manualHidden = true;
+    }
     applyHiddenState(true);
     emit visibilityToggled();
 }
@@ -292,6 +308,7 @@ void FileNodeItem::paintEye(QPainter *painter) const
 void FileNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     Q_UNUSED(widget);
+    painter->setOpacity(m_fade);
     const bool sel = option->state & QStyle::State_Selected;
     const ThemeColors &c = Theme::colors();
     const UiConfig &u = UiConfig::get();
