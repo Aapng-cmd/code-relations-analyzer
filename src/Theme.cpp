@@ -103,6 +103,10 @@ NodeTint Theme::languageTint(SourceLanguage language)
         return dark ? makeTint(QColor("#4a3224"), QColor("#e09b72")) : makeTint(QColor("#f5c9b0"), QColor("#c25b2a"));
     case SourceLanguage::Go:
         return dark ? makeTint(QColor("#1c3d38"), QColor("#6dc4b3")) : makeTint(QColor("#bfe8dc"), QColor("#2a8f7a"));
+    case SourceLanguage::Rust:
+        return dark ? makeTint(QColor("#4a2f22"), QColor("#e0a070")) : makeTint(QColor("#f3d0bc"), QColor("#b85c2a"));
+    case SourceLanguage::R:
+        return dark ? makeTint(QColor("#1e3050"), QColor("#7eb0e8")) : makeTint(QColor("#c5d8f0"), QColor("#2a5a9a"));
     case SourceLanguage::Php:
         return dark ? makeTint(QColor("#35284a"), QColor("#c4b0ff")) : makeTint(QColor("#ddd0f8"), QColor("#6a40c0"));
     case SourceLanguage::Html:

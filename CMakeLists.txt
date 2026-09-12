@@ -44,6 +44,8 @@ add_language_plugin(python src/PythonAnalyzer.cpp src/plugins/python_plugin.cpp)
 add_language_plugin(cpp src/CppAnalyzer.cpp src/plugins/cpp_plugin.cpp)
 add_language_plugin(java src/JavaAnalyzer.cpp src/plugins/java_plugin.cpp)
 add_language_plugin(go src/GoAnalyzer.cpp src/plugins/go_plugin.cpp)
+add_language_plugin(rust src/RustAnalyzer.cpp src/plugins/rust_plugin.cpp)
+add_language_plugin(r src/RAnalyzer.cpp src/plugins/r_plugin.cpp)
 add_language_plugin(php src/PhpAnalyzer.cpp src/plugins/php_plugin.cpp)
 add_language_plugin(html src/WebAnalyzer.cpp src/plugins/html_plugin.cpp)
 add_language_plugin(css src/WebAnalyzer.cpp src/plugins/css_plugin.cpp)
@@ -98,7 +100,7 @@ set_target_properties(code-relations-analyzer PROPERTIES
 )
 
 add_dependencies(code-relations-analyzer
-    cra-python cra-cpp cra-java cra-go cra-php cra-html cra-css cra-js cra-web)
+    cra-python cra-cpp cra-java cra-go cra-rust cra-r cra-php cra-html cra-css cra-js cra-web)
 
 file(COPY ${CMAKE_SOURCE_DIR}/config DESTINATION ${CMAKE_BINARY_DIR})
 

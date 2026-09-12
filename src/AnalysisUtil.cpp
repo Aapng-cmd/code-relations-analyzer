@@ -46,6 +46,17 @@ bool isGoFile(const QString &path)
     return QFileInfo(path).suffix().compare(QLatin1String("go"), Qt::CaseInsensitive) == 0;
 }
 
+bool isRustFile(const QString &path)
+{
+    return QFileInfo(path).suffix().compare(QLatin1String("rs"), Qt::CaseInsensitive) == 0;
+}
+
+bool isRFile(const QString &path)
+{
+    const QString s = QFileInfo(path).suffix().toLower();
+    return s == QLatin1String("r") || s == QLatin1String("rmd");
+}
+
 bool isPhpFile(const QString &path)
 {
     const QString s = QFileInfo(path).suffix().toLower();
@@ -224,6 +235,10 @@ SourceLanguage languageOf(const QString &path)
         return SourceLanguage::Java;
     if (isGoFile(path))
         return SourceLanguage::Go;
+    if (isRustFile(path))
+        return SourceLanguage::Rust;
+    if (isRFile(path))
+        return SourceLanguage::R;
     if (isPhpFile(path))
         return SourceLanguage::Php;
     if (isHtmlFile(path))
@@ -246,6 +261,10 @@ QString languageKey(SourceLanguage language)
         return QStringLiteral("java");
     case SourceLanguage::Go:
         return QStringLiteral("go");
+    case SourceLanguage::Rust:
+        return QStringLiteral("rust");
+    case SourceLanguage::R:
+        return QStringLiteral("r");
     case SourceLanguage::Php:
         return QStringLiteral("php");
     case SourceLanguage::Html:
@@ -269,6 +288,10 @@ SourceLanguage languageFromKey(const QString &key)
         return SourceLanguage::Java;
     if (key == QLatin1String("go"))
         return SourceLanguage::Go;
+    if (key == QLatin1String("rust"))
+        return SourceLanguage::Rust;
+    if (key == QLatin1String("r"))
+        return SourceLanguage::R;
     if (key == QLatin1String("php"))
         return SourceLanguage::Php;
     if (key == QLatin1String("html"))
@@ -287,7 +310,9 @@ QStringList scanFiles(const QString &rootDir)
     if (globs.isEmpty()) {
         globs << QStringLiteral("*.py") << QStringLiteral("*.c") << QStringLiteral("*.cc") << QStringLiteral("*.cpp")
               << QStringLiteral("*.cxx") << QStringLiteral("*.h") << QStringLiteral("*.hh") << QStringLiteral("*.hpp")
-              << QStringLiteral("*.hxx") << QStringLiteral("*.java") << QStringLiteral("*.go");
+              << QStringLiteral("*.hxx") << QStringLiteral("*.java") << QStringLiteral("*.go")
+              << QStringLiteral("*.rs") << QStringLiteral("*.R") << QStringLiteral("*.r")
+              << QStringLiteral("*.Rmd") << QStringLiteral("*.rmd");
         globs << QStringLiteral("*.php") << QStringLiteral("*.phtml") << QStringLiteral("*.html")
               << QStringLiteral("*.htm") << QStringLiteral("*.css") << QStringLiteral("*.js")
               << QStringLiteral("*.mjs");

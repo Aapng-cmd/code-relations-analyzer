@@ -41,11 +41,15 @@ void UiConfig::load()
                                      << QStringLiteral("CMakeFiles") << QStringLiteral(".cache")
                                      << QStringLiteral("cmake-build-debug") << QStringLiteral("cmake-build-release")
                                      << QStringLiteral("target") << QStringLiteral(".gradle") << QStringLiteral("vendor")
-                                     << QStringLiteral("node_modules") << QStringLiteral("bower_components");
+                                     << QStringLiteral("node_modules") << QStringLiteral("bower_components")
+                                     << QStringLiteral("renv") << QStringLiteral("packrat")
+                                     << QStringLiteral(".Rproj.user");
     cfg.scanGlobs = QStringList() << QStringLiteral("*.py") << QStringLiteral("*.c") << QStringLiteral("*.cc")
                                  << QStringLiteral("*.cpp") << QStringLiteral("*.cxx") << QStringLiteral("*.h")
                                  << QStringLiteral("*.hh") << QStringLiteral("*.hpp") << QStringLiteral("*.hxx")
-                                 << QStringLiteral("*.java") << QStringLiteral("*.go") << QStringLiteral("*.php")
+                                 << QStringLiteral("*.java") << QStringLiteral("*.go") << QStringLiteral("*.rs")
+                                 << QStringLiteral("*.R") << QStringLiteral("*.r") << QStringLiteral("*.Rmd")
+                                 << QStringLiteral("*.rmd") << QStringLiteral("*.php")
                                  << QStringLiteral("*.phtml") << QStringLiteral("*.html") << QStringLiteral("*.htm")
                                  << QStringLiteral("*.css") << QStringLiteral("*.js") << QStringLiteral("*.mjs");
 

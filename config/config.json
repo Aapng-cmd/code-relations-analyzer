@@ -37,6 +37,6 @@
   "edgeCurveStep": 22,
   "showOnlyConnectedFiles": true,
   "ignoredFileNames": ["__init__.py"],
-  "skipPathParts": ["__pycache__", ".venv", "venv", ".git", "build", "CMakeFiles", ".cache", "cmake-build-debug", "cmake-build-release", "target", ".gradle", "vendor", "node_modules", "bower_components"],
-  "scanGlobs": ["*.py", "*.c", "*.cc", "*.cpp", "*.cxx", "*.h", "*.hh", "*.hpp", "*.hxx", "*.java", "*.go", "*.php", "*.phtml", "*.html", "*.htm", "*.css", "*.js", "*.mjs"]
+  "skipPathParts": ["__pycache__", ".venv", "venv", ".git", "build", "CMakeFiles", ".cache", "cmake-build-debug", "cmake-build-release", "target", ".gradle", "vendor", "node_modules", "bower_components", "renv", "packrat", ".Rproj.user"],
+  "scanGlobs": ["*.py", "*.c", "*.cc", "*.cpp", "*.cxx", "*.h", "*.hh", "*.hpp", "*.hxx", "*.java", "*.go", "*.rs", "*.R", "*.r", "*.Rmd", "*.rmd", "*.php", "*.phtml", "*.html", "*.htm", "*.css", "*.js", "*.mjs"]
 }

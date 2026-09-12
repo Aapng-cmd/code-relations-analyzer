@@ -63,6 +63,10 @@ QString I18n::languageName(SourceLanguage language)
         return t(QStringLiteral("lang_java"));
     case SourceLanguage::Go:
         return t(QStringLiteral("lang_go"));
+    case SourceLanguage::Rust:
+        return t(QStringLiteral("lang_rust"));
+    case SourceLanguage::R:
+        return t(QStringLiteral("lang_r"));
     case SourceLanguage::Php:
         return t(QStringLiteral("lang_php"));
     case SourceLanguage::Html:

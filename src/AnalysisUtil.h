@@ -12,6 +12,8 @@ bool isPythonFile(const QString &path);
 bool isCppFile(const QString &path);
 bool isJavaFile(const QString &path);
 bool isGoFile(const QString &path);
+bool isRustFile(const QString &path);
+bool isRFile(const QString &path);
 bool isPhpFile(const QString &path);
 bool isHtmlFile(const QString &path);
 bool isCssFile(const QString &path);
