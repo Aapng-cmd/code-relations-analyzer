@@ -19,6 +19,8 @@ set(SOURCES
     src/GraphAnnotations.cpp
     src/PythonAnalyzer.cpp
     src/CppAnalyzer.cpp
+    src/JavaAnalyzer.cpp
+    src/GoAnalyzer.cpp
     src/ProjectAnalyzer.cpp
     src/InfoPanel.cpp
     src/FileNodeItem.cpp
@@ -39,6 +41,8 @@ set(HEADERS
     src/GraphAnnotations.h
     src/PythonAnalyzer.h
     src/CppAnalyzer.h
+    src/JavaAnalyzer.h
+    src/GoAnalyzer.h
     src/ProjectAnalyzer.h
     src/InfoPanel.h
     src/FileNodeItem.h

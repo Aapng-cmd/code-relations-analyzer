@@ -35,6 +35,16 @@ bool isCppFile(const QString &path)
            || s == QLatin1String("hxx");
 }
 
+bool isJavaFile(const QString &path)
+{
+    return QFileInfo(path).suffix().compare(QLatin1String("java"), Qt::CaseInsensitive) == 0;
+}
+
+bool isGoFile(const QString &path)
+{
+    return QFileInfo(path).suffix().compare(QLatin1String("go"), Qt::CaseInsensitive) == 0;
+}
+
 QStringList scanFiles(const QString &rootDir)
 {
     const UiConfig &cfg = UiConfig::get();
@@ -42,7 +52,7 @@ QStringList scanFiles(const QString &rootDir)
     if (globs.isEmpty()) {
         globs << QStringLiteral("*.py") << QStringLiteral("*.c") << QStringLiteral("*.cc") << QStringLiteral("*.cpp")
               << QStringLiteral("*.cxx") << QStringLiteral("*.h") << QStringLiteral("*.hh") << QStringLiteral("*.hpp")
-              << QStringLiteral("*.hxx");
+              << QStringLiteral("*.hxx") << QStringLiteral("*.java") << QStringLiteral("*.go");
     }
     QStringList out;
     QDirIterator it(rootDir, globs, QDir::Files, QDirIterator::Subdirectories);

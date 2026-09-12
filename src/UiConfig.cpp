@@ -39,10 +39,13 @@ void UiConfig::load()
     cfg.skipPathParts = QStringList() << QStringLiteral("__pycache__") << QStringLiteral(".venv")
                                      << QStringLiteral("venv") << QStringLiteral(".git") << QStringLiteral("build")
                                      << QStringLiteral("CMakeFiles") << QStringLiteral(".cache")
-                                     << QStringLiteral("cmake-build-debug") << QStringLiteral("cmake-build-release");
+                                     << QStringLiteral("cmake-build-debug") << QStringLiteral("cmake-build-release")
+                                     << QStringLiteral("target") << QStringLiteral(".gradle") << QStringLiteral("vendor")
+                                     << QStringLiteral("node_modules");
     cfg.scanGlobs = QStringList() << QStringLiteral("*.py") << QStringLiteral("*.c") << QStringLiteral("*.cc")
                                  << QStringLiteral("*.cpp") << QStringLiteral("*.cxx") << QStringLiteral("*.h")
-                                 << QStringLiteral("*.hh") << QStringLiteral("*.hpp") << QStringLiteral("*.hxx");
+                                 << QStringLiteral("*.hh") << QStringLiteral("*.hpp") << QStringLiteral("*.hxx")
+                                 << QStringLiteral("*.java") << QStringLiteral("*.go");
 
     const QString path = ConfigPaths::findFile(QStringLiteral("config.json"));
     if (path.isEmpty())

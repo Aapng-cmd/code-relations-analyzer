@@ -12,7 +12,7 @@
   "language_ru": "Russian",
   "close": "Close",
   "reserved": "Reserved",
-  "status_open_hint": "Open a project directory to scan Python and C/C++ files.",
+  "status_open_hint": "Open a project directory to scan Python, C/C++, Java and Go files.",
   "status_scanned": "Scanned %1",
   "selection": "Selection",
   "click_file_or_arrow": "Click a file or an arrow.",

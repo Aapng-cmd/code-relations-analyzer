@@ -12,7 +12,7 @@
   "language_ru": "Русский",
   "close": "Закрыть",
   "reserved": "Резерв",
-  "status_open_hint": "Откройте каталог проекта, чтобы просканировать файлы Python и C/C++.",
+  "status_open_hint": "Откройте каталог проекта, чтобы просканировать файлы Python, C/C++, Java и Go.",
   "status_scanned": "Просканировано: %1",
   "selection": "Выбор",
   "click_file_or_arrow": "Нажмите на файл или стрелку.",
