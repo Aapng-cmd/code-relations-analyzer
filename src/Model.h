@@ -6,6 +6,8 @@
 
 enum class SymbolKind { Class, Function, Variable };
 
+enum class SourceLanguage { Unknown, Python, Cpp, Java, Go };
+
 struct DefinedSymbol {
     QString name;
     QString qualifiedName;
@@ -22,6 +24,7 @@ struct FileNode {
     QString fileName;
     QString moduleName;
     QString comment;
+    SourceLanguage language = SourceLanguage::Unknown;
     QVector<DefinedSymbol> symbols;
 };
 

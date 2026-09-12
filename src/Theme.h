@@ -1,7 +1,10 @@
 #pragma once
 
+#include "Model.h"
+
 #include <QColor>
 #include <QString>
+#include <QVector>
 
 class QWidget;
 
@@ -27,11 +30,27 @@ struct ThemeColors {
     QColor edgeLabelBg;
 };
 
+struct NodeTint {
+    QColor bg;
+    QColor bgSelected;
+    QColor border;
+
+    bool operator==(const NodeTint &other) const
+    {
+        return bg == other.bg && bgSelected == other.bgSelected && border == other.border;
+    }
+    bool operator!=(const NodeTint &other) const { return !(*this == other); }
+};
+
 class Theme {
 public:
     static AppTheme current();
     static void setCurrent(AppTheme theme);
-    static ThemeColors colors();
+    static const ThemeColors &colors();
+    static NodeTint defaultNodeTint();
+    static NodeTint languageTint(SourceLanguage language);
+    static QVector<NodeTint> groupPalette();
+    static NodeTint pickUnusedTint(const QVector<QColor> &usedBg);
     static QString globalStyleSheet();
     static void applyTo(QWidget *root);
 };

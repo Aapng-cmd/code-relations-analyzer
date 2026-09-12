@@ -51,3 +51,19 @@ QString I18n::language()
 {
     return s_language;
 }
+
+QString I18n::languageName(SourceLanguage language)
+{
+    switch (language) {
+    case SourceLanguage::Python:
+        return t(QStringLiteral("lang_python"));
+    case SourceLanguage::Cpp:
+        return t(QStringLiteral("lang_cpp"));
+    case SourceLanguage::Java:
+        return t(QStringLiteral("lang_java"));
+    case SourceLanguage::Go:
+        return t(QStringLiteral("lang_go"));
+    default:
+        return t(QStringLiteral("lang_all"));
+    }
+}

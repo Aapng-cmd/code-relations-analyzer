@@ -45,6 +45,48 @@ bool isGoFile(const QString &path)
     return QFileInfo(path).suffix().compare(QLatin1String("go"), Qt::CaseInsensitive) == 0;
 }
 
+SourceLanguage languageOf(const QString &path)
+{
+    if (isPythonFile(path))
+        return SourceLanguage::Python;
+    if (isCppFile(path))
+        return SourceLanguage::Cpp;
+    if (isJavaFile(path))
+        return SourceLanguage::Java;
+    if (isGoFile(path))
+        return SourceLanguage::Go;
+    return SourceLanguage::Unknown;
+}
+
+QString languageKey(SourceLanguage language)
+{
+    switch (language) {
+    case SourceLanguage::Python:
+        return QStringLiteral("python");
+    case SourceLanguage::Cpp:
+        return QStringLiteral("cpp");
+    case SourceLanguage::Java:
+        return QStringLiteral("java");
+    case SourceLanguage::Go:
+        return QStringLiteral("go");
+    default:
+        return QStringLiteral("unknown");
+    }
+}
+
+SourceLanguage languageFromKey(const QString &key)
+{
+    if (key == QLatin1String("python"))
+        return SourceLanguage::Python;
+    if (key == QLatin1String("cpp"))
+        return SourceLanguage::Cpp;
+    if (key == QLatin1String("java"))
+        return SourceLanguage::Java;
+    if (key == QLatin1String("go"))
+        return SourceLanguage::Go;
+    return SourceLanguage::Unknown;
+}
+
 QStringList scanFiles(const QString &rootDir)
 {
     const UiConfig &cfg = UiConfig::get();

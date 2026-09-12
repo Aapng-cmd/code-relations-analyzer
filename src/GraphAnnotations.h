@@ -11,6 +11,14 @@ struct FictitiousLink {
     QString comment;
 };
 
+struct FileGroup {
+    QString id;
+    QString name;
+    QString color;
+    QString border;
+    QStringList files;
+};
+
 class GraphAnnotations {
 public:
     void setRoot(const QString &rootDir);
@@ -27,6 +35,20 @@ public:
     void setFictitiousComment(const QString &fromPath, const QString &toPath, const QString &comment);
     void removeFictitious(const QString &fromPath, const QString &toPath);
 
+    bool isFileHidden(const QString &path) const;
+    void setHiddenFiles(const QStringList &paths);
+    QStringList hiddenFiles() const { return m_hidden; }
+
+    QString languageFilter() const { return m_languageFilter; }
+    void setLanguageFilter(const QString &key);
+
+    QVector<FileGroup> groups() const { return m_groups; }
+    const FileGroup *groupOf(const QString &path) const;
+    FileGroup *groupOf(const QString &path);
+    FileGroup createGroup(const QString &name, const QStringList &paths, const QString &color, const QString &border);
+    void addToGroup(const QString &groupId, const QString &path);
+    void removeFromGroup(const QString &path);
+
 private:
     void load();
     void save() const;
@@ -36,4 +58,7 @@ private:
     QStringList m_deleted;
     QMap<QString, QString> m_comments;
     QVector<FictitiousLink> m_fictitious;
+    QStringList m_hidden;
+    QString m_languageFilter = QStringLiteral("all");
+    QVector<FileGroup> m_groups;
 };

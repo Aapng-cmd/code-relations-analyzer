@@ -6,6 +6,7 @@
 
 #include <QCursor>
 #include <QEasingCurve>
+#include <QFileInfo>
 #include <QFontMetrics>
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
@@ -46,6 +47,43 @@ private:
     FileNodeItem *m_owner = nullptr;
 };
 
+QString elideStemKeepExt(const QString &name, const QFontMetrics &fm, int maxWidth)
+{
+    if (maxWidth <= 0)
+        return {};
+    if (fm.horizontalAdvance(name) <= maxWidth)
+        return name;
+
+    const QFileInfo info(name);
+    const QString ext = info.suffix();
+    const QString stem = info.completeBaseName();
+    const QString ellipsis = QStringLiteral("...");
+    if (ext.isEmpty() || stem.isEmpty() || stem == name)
+        return fm.elidedText(name, Qt::ElideMiddle, maxWidth);
+
+    const QString suffix = ellipsis + ext;
+    const int suffixWidth = fm.horizontalAdvance(suffix);
+    if (suffixWidth >= maxWidth)
+        return fm.elidedText(name, Qt::ElideMiddle, maxWidth);
+
+    const int stemBudget = maxWidth - suffixWidth;
+    int lo = 0;
+    int hi = stem.size();
+    int best = 0;
+    while (lo <= hi) {
+        const int mid = (lo + hi) / 2;
+        if (fm.horizontalAdvance(stem.left(mid)) <= stemBudget) {
+            best = mid;
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    if (best <= 0)
+        return fm.elidedText(name, Qt::ElideMiddle, maxWidth);
+    return stem.left(best) + suffix;
+}
+
 } // namespace
 
 FileNodeItem::FileNodeItem(const FileNode &file, QGraphicsItem *parent)
@@ -55,14 +93,14 @@ FileNodeItem::FileNodeItem(const FileNode &file, QGraphicsItem *parent)
     setFlag(ItemIsMovable, true);
     setFlag(ItemIsSelectable, true);
     setFlag(ItemSendsGeometryChanges, true);
-    setFlag(ItemIsFocusable, true);
     setBrush(Qt::NoBrush);
     setPen(Qt::NoPen);
     setZValue(3);
     setCursor(QCursor(Qt::OpenHandCursor));
+    m_tint = Theme::defaultNodeTint();
     m_fade = UiConfig::get().visibleOpacity;
     setOpacity(m_fade);
-    setToolTip(m_file.comment);
+    updateToolTip();
     m_eyeHit = new EyeHitItem(this);
     updateEyeHitItem();
 }
@@ -70,7 +108,23 @@ FileNodeItem::FileNodeItem(const FileNode &file, QGraphicsItem *parent)
 void FileNodeItem::setComment(const QString &comment)
 {
     m_file.comment = comment.trimmed();
-    setToolTip(m_file.comment);
+    updateToolTip();
+    update();
+}
+
+void FileNodeItem::updateToolTip()
+{
+    if (m_file.comment.isEmpty())
+        setToolTip(m_file.fileName);
+    else
+        setToolTip(m_file.fileName + QLatin1Char('\n') + m_file.comment);
+}
+
+void FileNodeItem::setTint(const NodeTint &tint)
+{
+    if (m_tint == tint)
+        return;
+    m_tint = tint;
     update();
 }
 
@@ -110,7 +164,6 @@ void FileNodeItem::setFade(qreal value)
 {
     m_fade = value;
     setOpacity(value);
-    update();
 }
 
 void FileNodeItem::applyInteractionState()
@@ -130,6 +183,25 @@ void FileNodeItem::applyInteractionState()
         m_eyeHit->setZValue(50);
         m_eyeHit->setVisible(true);
     }
+}
+
+void FileNodeItem::applyHiddenState(bool animate)
+{
+    applyInteractionState();
+    const UiConfig &u = UiConfig::get();
+    const bool dimmed = m_manualHidden || m_autoHidden;
+    const qreal eyeTo = dimmed ? 1.0 : 0.0;
+    const qreal fadeTo = dimmed ? u.hiddenOpacity : u.visibleOpacity;
+    if (!animate) {
+        if (m_anim)
+            m_anim->stop();
+        m_anim = nullptr;
+        m_eyeClose = eyeTo;
+        setFade(fadeTo);
+        update();
+        return;
+    }
+    animateHiddenState();
 }
 
 void FileNodeItem::animateHiddenState()
@@ -160,12 +232,12 @@ void FileNodeItem::animateHiddenState()
     m_anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
-void FileNodeItem::setAutoHidden(bool hidden)
+void FileNodeItem::setAutoHidden(bool hidden, bool animate)
 {
     if (m_autoHidden == hidden)
         return;
     m_autoHidden = hidden;
-    animateHiddenState();
+    applyHiddenState(animate);
 }
 
 void FileNodeItem::toggleHidden()
@@ -173,19 +245,19 @@ void FileNodeItem::toggleHidden()
     if (m_autoHidden)
         return;
     m_manualHidden = !m_manualHidden;
-    animateHiddenState();
+    applyHiddenState(true);
     emit visibilityToggled();
 }
 
-bool FileNodeItem::contains(const QPointF &point) const
+QString FileNodeItem::elidedFileName(const QFont &font, qreal maxWidth) const
 {
-    return QGraphicsRectItem::contains(point);
+    return elideStemKeepExt(m_file.fileName, QFontMetrics(font), int(maxWidth));
 }
 
 void FileNodeItem::paintEye(QPainter *painter) const
 {
     const QRectF r = eyeVisualRect();
-    const ThemeColors c = Theme::colors();
+    const ThemeColors &c = Theme::colors();
     const qreal cx = r.center().x();
     const qreal cy = r.center().y();
     const qreal rx = r.width() * 0.42;
@@ -193,7 +265,6 @@ void FileNodeItem::paintEye(QPainter *painter) const
     const qreal close = m_eyeClose;
 
     painter->save();
-    painter->setRenderHint(QPainter::Antialiasing);
     QPen pen(c.nodeMuted, 1.6);
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
@@ -221,12 +292,11 @@ void FileNodeItem::paintEye(QPainter *painter) const
 void FileNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     Q_UNUSED(widget);
-    painter->setRenderHint(QPainter::Antialiasing);
     const bool sel = option->state & QStyle::State_Selected;
-    const ThemeColors c = Theme::colors();
+    const ThemeColors &c = Theme::colors();
     const UiConfig &u = UiConfig::get();
-    painter->setPen(QPen(sel ? c.nodeBorderSelected : c.nodeBorder, sel ? 3 : 2));
-    painter->setBrush(sel ? c.nodeBgSelected : c.nodeBg);
+    painter->setPen(QPen(sel ? c.nodeBorderSelected : m_tint.border, sel ? 3 : 2));
+    painter->setBrush(sel ? m_tint.bgSelected : m_tint.bg);
     painter->drawRoundedRect(rect().adjusted(1, 1, -1, -1), u.nodeCornerRadius, u.nodeCornerRadius);
 
     painter->setPen(c.nodeText);
@@ -235,8 +305,9 @@ void FileNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *opti
     title.setPointSize(u.nodeTitlePointSize);
     painter->setFont(title);
     const qreal pad = u.nodePadding;
+    const qreal nameWidth = rect().width() - 2 * pad - u.eyeHitSize;
     painter->drawText(rect().adjusted(pad, pad + 4, -pad - u.eyeHitSize, -pad),
-                      Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap, m_file.fileName);
+                      Qt::AlignHCenter | Qt::AlignTop, elidedFileName(title, nameWidth));
 
     QFont sub = title;
     sub.setBold(false);
@@ -267,6 +338,13 @@ void FileNodeItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if (eyeHitRect().contains(event->pos())) {
         toggleHidden();
         event->accept();
+        return;
+    }
+    if (event->button() == Qt::RightButton) {
+        if (!isSelected())
+            QGraphicsRectItem::mousePressEvent(event);
+        else
+            event->accept();
         return;
     }
     setCursor(QCursor(Qt::ClosedHandCursor));

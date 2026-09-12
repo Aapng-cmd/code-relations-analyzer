@@ -4,6 +4,7 @@
 #include "UiConfig.h"
 
 #include <QCursor>
+#include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
 #include <QPainterPathStroker>
@@ -72,13 +73,28 @@ void RelationEdgeItem::updateVisibility()
     setVisible(show);
 }
 
+void RelationEdgeItem::invalidateShape()
+{
+    m_shapeDirty = true;
+    prepareGeometryChange();
+}
+
+QString RelationEdgeItem::labelText() const
+{
+    if (m_relation.fictitious && !m_relation.comment.isEmpty())
+        return m_relation.comment;
+    if (m_relation.fictitious)
+        return QStringLiteral("%1 ⇢ %2").arg(m_relation.fromFileName, m_relation.toFileName);
+    return QStringLiteral("%1 → %2").arg(m_relation.fromFileName, m_relation.toFileName);
+}
+
 void RelationEdgeItem::updatePath()
 {
     if (!m_from || !m_to)
         return;
 
-    const QRectF aRect = m_from->sceneBoundingRect();
-    const QRectF bRect = m_to->sceneBoundingRect();
+    const QRectF aRect(m_from->scenePos(), m_from->rect().size());
+    const QRectF bRect(m_to->scenePos(), m_to->rect().size());
     const QPointF ac = aRect.center();
     const QPointF bc = bRect.center();
     const QPointF a = borderPoint(aRect, ac, bc);
@@ -93,37 +109,63 @@ void RelationEdgeItem::updatePath()
 
     QPainterPath path(a);
     path.cubicTo(c1, c2, b);
+    invalidateShape();
     setPath(path);
+}
+
+QRectF RelationEdgeItem::boundingRect() const
+{
+    const UiConfig &u = UiConfig::get();
+    qreal extra = qMax(u.edgeHitWidth, u.edgeArrowSize) * 0.5 + 4;
+    if (m_hovered || isSelected())
+        extra += 28;
+    return path().boundingRect().adjusted(-extra, -extra, extra, extra);
 }
 
 QPainterPath RelationEdgeItem::shape() const
 {
-    QPainterPathStroker stroker;
-    stroker.setWidth(UiConfig::get().edgeHitWidth);
-    return stroker.createStroke(path());
+    if (m_shapeDirty) {
+        QPainterPathStroker stroker;
+        stroker.setWidth(UiConfig::get().edgeHitWidth);
+        stroker.setCapStyle(Qt::RoundCap);
+        m_shape = stroker.createStroke(path());
+        m_shapeDirty = false;
+    }
+    return m_shape;
 }
 
 void RelationEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     Q_UNUSED(widget);
-    painter->setRenderHint(QPainter::Antialiasing);
     const bool sel = option->state & QStyle::State_Selected;
-    const ThemeColors c = Theme::colors();
+    const bool detailed = sel || m_hovered || !m_labelsOnDemand;
+    const ThemeColors &c = Theme::colors();
     const QColor color = sel ? c.edgeSelected : c.edge;
-
     const UiConfig &u = UiConfig::get();
-    QPen outline(c.graphBg, sel ? u.edgePenWidthSelected + 3.5 : u.edgePenWidth + 3.4);
-    outline.setCapStyle(Qt::RoundCap);
-    if (m_relation.fictitious)
-        outline.setStyle(Qt::DashLine);
-    painter->setPen(outline);
-    painter->setBrush(Qt::NoBrush);
-    painter->drawPath(path());
+    const qreal lod = QStyleOptionGraphicsItem::levelOfDetailFromTransform(painter->worldTransform());
 
     QPen pen(color, sel ? u.edgePenWidthSelected : u.edgePenWidth);
     pen.setCapStyle(Qt::RoundCap);
     if (m_relation.fictitious)
         pen.setStyle(Qt::DashLine);
+    painter->setBrush(Qt::NoBrush);
+
+    if (lod < 0.45) {
+        pen.setWidthF(qMax<qreal>(1.0, u.edgePenWidth * 0.7));
+        painter->setPen(pen);
+        painter->drawPath(path());
+        return;
+    }
+
+    if (sel) {
+        QPen outline(c.graphBg, u.edgePenWidthSelected + 3.5);
+        outline.setCapStyle(Qt::RoundCap);
+        if (m_relation.fictitious)
+            outline.setStyle(Qt::DashLine);
+        painter->setPen(outline);
+        painter->drawPath(path());
+    }
+
     painter->setPen(pen);
     painter->drawPath(path());
 
@@ -135,7 +177,7 @@ void RelationEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *
     const QPointF prev = p.pointAtPercent(0.88);
     const QLineF line(prev, tip);
     const double angle = std::atan2(line.dy(), line.dx());
-    const qreal size = UiConfig::get().edgeArrowSize;
+    const qreal size = u.edgeArrowSize;
     QPolygonF arrow;
     arrow << tip
           << tip - QPointF(std::cos(angle - M_PI / 7) * size, std::sin(angle - M_PI / 7) * size)
@@ -144,14 +186,13 @@ void RelationEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *
     painter->setPen(Qt::NoPen);
     painter->drawPolygon(arrow);
 
+    if (!detailed)
+        return;
+
     const QPointF mid = p.pointAtPercent(0.5);
-    QString label = QStringLiteral("%1 → %2").arg(m_relation.fromFileName, m_relation.toFileName);
-    if (m_relation.fictitious && !m_relation.comment.isEmpty())
-        label = m_relation.comment;
-    else if (m_relation.fictitious)
-        label = QStringLiteral("%1 ⇢ %2").arg(m_relation.fromFileName, m_relation.toFileName);
+    const QString label = labelText();
     QFont font = painter->font();
-    font.setPointSize(UiConfig::get().edgeLabelPointSize);
+    font.setPointSize(u.edgeLabelPointSize);
     font.setBold(true);
     painter->setFont(font);
     const QFontMetrics fm(font);
@@ -162,6 +203,22 @@ void RelationEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *
     painter->drawRoundedRect(box, 4, 4);
     painter->setPen(c.nodeText);
     painter->drawText(box, Qt::AlignCenter, label);
+}
+
+void RelationEdgeItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
+{
+    m_hovered = true;
+    prepareGeometryChange();
+    update();
+    QGraphicsPathItem::hoverEnterEvent(event);
+}
+
+void RelationEdgeItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
+{
+    m_hovered = false;
+    prepareGeometryChange();
+    update();
+    QGraphicsPathItem::hoverLeaveEvent(event);
 }
 
 void RelationEdgeItem::mousePressEvent(QGraphicsSceneMouseEvent *event)

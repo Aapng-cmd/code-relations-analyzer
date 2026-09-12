@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUuid>
 
 namespace {
 
@@ -25,6 +26,9 @@ void GraphAnnotations::setRoot(const QString &rootDir)
     m_deleted.clear();
     m_comments.clear();
     m_fictitious.clear();
+    m_hidden.clear();
+    m_languageFilter = QStringLiteral("all");
+    m_groups.clear();
     if (!m_root.isEmpty())
         load();
 }
@@ -47,6 +51,15 @@ void GraphAnnotations::deleteFile(const QString &path)
             kept.push_back(link);
     }
     m_fictitious = kept;
+    m_hidden.removeAll(path);
+    for (FileGroup &g : m_groups)
+        g.files.removeAll(path);
+    QVector<FileGroup> groups;
+    for (const FileGroup &g : m_groups) {
+        if (!g.files.isEmpty())
+            groups.push_back(g);
+    }
+    m_groups = groups;
     save();
 }
 
@@ -138,6 +151,34 @@ void GraphAnnotations::load()
         if (!link.fromPath.isEmpty() && !link.toPath.isEmpty() && link.fromPath != link.toPath)
             m_fictitious.push_back(link);
     }
+    const QJsonArray hidden = obj.value(QStringLiteral("hiddenFiles")).toArray();
+    for (const QJsonValue &v : hidden) {
+        const QString path = v.toString();
+        if (!path.isEmpty())
+            m_hidden << path;
+    }
+    m_languageFilter = obj.value(QStringLiteral("languageFilter")).toString(QStringLiteral("all"));
+    if (m_languageFilter.isEmpty())
+        m_languageFilter = QStringLiteral("all");
+    const QJsonArray groups = obj.value(QStringLiteral("groups")).toArray();
+    for (const QJsonValue &v : groups) {
+        const QJsonObject o = v.toObject();
+        FileGroup g;
+        g.id = o.value(QStringLiteral("id")).toString();
+        g.name = o.value(QStringLiteral("name")).toString();
+        g.color = o.value(QStringLiteral("color")).toString();
+        g.border = o.value(QStringLiteral("border")).toString();
+        const QJsonArray files = o.value(QStringLiteral("files")).toArray();
+        for (const QJsonValue &f : files) {
+            const QString path = f.toString();
+            if (!path.isEmpty())
+                g.files << path;
+        }
+        if (g.id.isEmpty())
+            g.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        if (!g.files.isEmpty())
+            m_groups.push_back(g);
+    }
 }
 
 void GraphAnnotations::save() const
@@ -168,5 +209,141 @@ void GraphAnnotations::save() const
         fictitious.append(o);
     }
     obj.insert(QStringLiteral("fictitious"), fictitious);
+    QJsonArray hidden;
+    for (const QString &p : m_hidden)
+        hidden.append(p);
+    obj.insert(QStringLiteral("hiddenFiles"), hidden);
+    obj.insert(QStringLiteral("languageFilter"), m_languageFilter);
+    QJsonArray groups;
+    for (const FileGroup &g : m_groups) {
+        QJsonObject o;
+        o.insert(QStringLiteral("id"), g.id);
+        o.insert(QStringLiteral("name"), g.name);
+        o.insert(QStringLiteral("color"), g.color);
+        o.insert(QStringLiteral("border"), g.border);
+        QJsonArray files;
+        for (const QString &p : g.files)
+            files.append(p);
+        o.insert(QStringLiteral("files"), files);
+        groups.append(o);
+    }
+    obj.insert(QStringLiteral("groups"), groups);
     file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+}
+
+bool GraphAnnotations::isFileHidden(const QString &path) const
+{
+    return m_hidden.contains(path);
+}
+
+void GraphAnnotations::setHiddenFiles(const QStringList &paths)
+{
+    m_hidden.clear();
+    for (const QString &path : paths) {
+        if (!path.isEmpty() && !m_hidden.contains(path))
+            m_hidden << path;
+    }
+    save();
+}
+
+void GraphAnnotations::setLanguageFilter(const QString &key)
+{
+    m_languageFilter = key.isEmpty() ? QStringLiteral("all") : key;
+    save();
+}
+
+const FileGroup *GraphAnnotations::groupOf(const QString &path) const
+{
+    for (const FileGroup &g : m_groups) {
+        if (g.files.contains(path))
+            return &g;
+    }
+    return nullptr;
+}
+
+FileGroup *GraphAnnotations::groupOf(const QString &path)
+{
+    for (FileGroup &g : m_groups) {
+        if (g.files.contains(path))
+            return &g;
+    }
+    return nullptr;
+}
+
+void GraphAnnotations::removeFromGroup(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+    bool changed = false;
+    for (FileGroup &g : m_groups) {
+        if (g.files.removeAll(path) > 0)
+            changed = true;
+    }
+    if (!changed)
+        return;
+    QVector<FileGroup> kept;
+    for (const FileGroup &g : m_groups) {
+        if (!g.files.isEmpty())
+            kept.push_back(g);
+    }
+    m_groups = kept;
+    save();
+}
+
+FileGroup GraphAnnotations::createGroup(const QString &name, const QStringList &paths, const QString &color,
+                                        const QString &border)
+{
+    QStringList unique;
+    for (const QString &path : paths) {
+        if (!path.isEmpty() && !unique.contains(path))
+            unique << path;
+    }
+    for (const QString &path : unique) {
+        for (FileGroup &g : m_groups)
+            g.files.removeAll(path);
+    }
+    QVector<FileGroup> kept;
+    for (const FileGroup &g : m_groups) {
+        if (!g.files.isEmpty())
+            kept.push_back(g);
+    }
+    m_groups = kept;
+
+    FileGroup g;
+    g.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    g.name = name.trimmed();
+    if (g.name.isEmpty())
+        g.name = QStringLiteral("Group");
+    g.color = color;
+    g.border = border;
+    g.files = unique;
+    if (!g.files.isEmpty())
+        m_groups.push_back(g);
+    save();
+    return g;
+}
+
+void GraphAnnotations::addToGroup(const QString &groupId, const QString &path)
+{
+    if (groupId.isEmpty() || path.isEmpty())
+        return;
+    FileGroup *target = nullptr;
+    for (FileGroup &g : m_groups) {
+        if (g.id == groupId) {
+            target = &g;
+            break;
+        }
+    }
+    if (!target)
+        return;
+    if (target->files.contains(path))
+        return;
+    removeFromGroup(path);
+    for (FileGroup &g : m_groups) {
+        if (g.id == groupId) {
+            g.files << path;
+            save();
+            return;
+        }
+    }
 }
