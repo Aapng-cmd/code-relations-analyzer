@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
     Theme::setCurrent(AppConfig::instance().theme());
     I18n::load(AppConfig::instance().language());
     MainWindow window;
-    window.show();
+    window.showMaximized();
     if (argc >= 2) {
         const QString path = QString::fromLocal8Bit(argv[1]);
         if (QFileInfo(path).isDir())

@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QShowEvent>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QToolBar>
@@ -27,6 +28,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     const UiConfig &u = UiConfig::get();
     resize(u.windowWidth, u.windowHeight);
+    setWindowState(windowState() | Qt::WindowMaximized);
 
     m_toolbar = addToolBar(QString());
     m_toolbar->setMovable(false);
@@ -45,24 +47,27 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_graph = new GraphView;
     m_info = new InfoPanel;
+    m_info->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
     m_reserve = new QLabel;
     m_reserve->setAlignment(Qt::AlignCenter);
-    m_reserve->setMinimumHeight(UiConfig::get().reserveHeight);
+    m_reserve->setMinimumHeight(u.reserveHeight);
+    m_reserve->setMaximumHeight(u.reserveHeight);
+    m_reserve->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    auto *left = new QSplitter(Qt::Vertical);
-    left->addWidget(m_graph);
-    left->addWidget(m_reserve);
-    left->setStretchFactor(0, 4);
-    left->setStretchFactor(1, 1);
-    left->setChildrenCollapsible(false);
+    m_vSplitter = new QSplitter(Qt::Vertical);
+    m_vSplitter->addWidget(m_graph);
+    m_vSplitter->addWidget(m_reserve);
+    m_vSplitter->setStretchFactor(0, 1);
+    m_vSplitter->setStretchFactor(1, 0);
+    m_vSplitter->setChildrenCollapsible(false);
 
-    auto *root = new QSplitter(Qt::Horizontal);
-    root->addWidget(left);
-    root->addWidget(m_info);
-    root->setStretchFactor(0, 5);
-    root->setStretchFactor(1, 2);
-    root->setChildrenCollapsible(false);
-    setCentralWidget(root);
+    m_hSplitter = new QSplitter(Qt::Horizontal);
+    m_hSplitter->addWidget(m_vSplitter);
+    m_hSplitter->addWidget(m_info);
+    m_hSplitter->setStretchFactor(0, 1);
+    m_hSplitter->setStretchFactor(1, 0);
+    m_hSplitter->setChildrenCollapsible(false);
+    setCentralWidget(m_hSplitter);
 
     connect(m_graph, &GraphView::relationSelected, m_info, &InfoPanel::showRelation);
     connect(m_graph, &GraphView::fileSelected, m_info, &InfoPanel::showFile);
@@ -108,6 +113,23 @@ void MainWindow::applyAnalysis(const AnalysisResult &result)
     rebuildViewMenu();
 }
 
+QString MainWindow::filterTitle(const QString &key) const
+{
+    if (key.isEmpty() || key == QLatin1String("all"))
+        return I18n::t(QStringLiteral("lang_all"));
+    if (key == QLatin1String("web"))
+        return I18n::t(QStringLiteral("lang_web"));
+    return I18n::languageName(AnalysisUtil::languageFromKey(key));
+}
+
+void MainWindow::updateViewButton()
+{
+    if (!m_viewAction)
+        return;
+    const QString key = m_graph ? m_graph->languageFilter() : QStringLiteral("all");
+    m_viewAction->setText(filterTitle(key));
+}
+
 void MainWindow::rebuildViewMenu()
 {
     fillViewMenu(m_viewMenu);
@@ -117,6 +139,26 @@ void MainWindow::rebuildViewMenu()
         m_viewMenu->menuAction()->setVisible(hasProject);
     if (m_viewAction)
         m_viewAction->setEnabled(hasProject);
+    updateViewButton();
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    if (m_didInitialLayout)
+        return;
+    m_didInitialLayout = true;
+    const UiConfig &u = UiConfig::get();
+    if (m_hSplitter) {
+        const int infoW = u.infoPanelMinWidth;
+        const int total = qMax(m_hSplitter->width(), infoW + u.graphMinWidth);
+        m_hSplitter->setSizes(QList<int>() << (total - infoW) << infoW);
+    }
+    if (m_vSplitter) {
+        const int resH = u.reserveHeight;
+        const int total = qMax(m_vSplitter->height(), resH + u.graphMinHeight);
+        m_vSplitter->setSizes(QList<int>() << (total - resH) << resH);
+    }
 }
 
 void MainWindow::fillViewMenu(QMenu *menu)
@@ -167,8 +209,6 @@ void MainWindow::retranslate()
         m_fileMenu->setTitle(I18n::t(QStringLiteral("toolbar_file")));
     if (m_viewMenu)
         m_viewMenu->setTitle(I18n::t(QStringLiteral("view_menu")));
-    if (m_viewAction)
-        m_viewAction->setText(I18n::t(QStringLiteral("view_menu")));
     rebuildViewMenu();
     m_reserve->setText(I18n::t(QStringLiteral("reserved")));
     m_info->retranslate();
