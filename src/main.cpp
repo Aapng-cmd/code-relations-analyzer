@@ -1,7 +1,7 @@
 #include "MainWindow.h"
 #include "AppConfig.h"
 #include "I18n.h"
-#include "PythonAnalyzer.h"
+#include "ProjectAnalyzer.h"
 #include "Theme.h"
 #include "UiConfig.h"
 
@@ -34,21 +34,49 @@ static void dumpSymbols(QTextStream &out, const QVector<DefinedSymbol> &symbols,
         if (!classes.isEmpty()) {
             out << pad << "Classes\n";
             for (const DefinedSymbol &s : classes) {
-                out << pad << "  " << s.display << '\n';
+                out << pad << "  " << s.display;
+                if (s.line > 0)
+                    out << "  :" << s.line;
+                if (!s.useLines.isEmpty()) {
+                    out << "  uses[";
+                    for (int i = 0; i < s.useLines.size(); ++i) {
+                        if (i)
+                            out << ',';
+                        out << s.useLines[i];
+                    }
+                    out << ']';
+                }
+                out << '\n';
                 walk(s.qualifiedName, pad + QStringLiteral("    "));
             }
         }
         if (!functions.isEmpty()) {
             out << pad << "Functions\n";
             for (const DefinedSymbol &s : functions) {
-                out << pad << "  " << s.display << '\n';
+                out << pad << "  " << s.display;
+                if (s.line > 0)
+                    out << "  :" << s.line;
+                if (!s.useLines.isEmpty()) {
+                    out << "  uses[";
+                    for (int i = 0; i < s.useLines.size(); ++i) {
+                        if (i)
+                            out << ',';
+                        out << s.useLines[i];
+                    }
+                    out << ']';
+                }
+                out << '\n';
                 walk(s.qualifiedName, pad + QStringLiteral("    "));
             }
         }
         if (!variables.isEmpty()) {
             out << pad << "Variables\n";
-            for (const DefinedSymbol &s : variables)
-                out << pad << "  " << s.display << '\n';
+            for (const DefinedSymbol &s : variables) {
+                out << pad << "  " << s.display;
+                if (s.line > 0)
+                    out << "  :" << s.line;
+                out << '\n';
+            }
         }
     };
     walk(QString(), indent);
@@ -56,7 +84,7 @@ static void dumpSymbols(QTextStream &out, const QVector<DefinedSymbol> &symbols,
 
 static int dumpAnalysis(const QString &dir)
 {
-    const AnalysisResult result = PythonAnalyzer::analyzeDirectory(dir);
+    const AnalysisResult result = ProjectAnalyzer::analyzeDirectory(dir);
     QTextStream out(stdout);
     out << "=== files ===\n";
     for (const FileNode &file : result.files) {

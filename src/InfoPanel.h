@@ -21,10 +21,11 @@ public:
     void retranslate();
 
 private:
-    void fillTree(const QVector<DefinedSymbol> &symbols);
+    void fillTree(const QVector<DefinedSymbol> &symbols, bool relationMode);
     void addGrouped(QTreeWidgetItem *parent, const QString &parentQualified,
-                    const QMap<QString, QVector<DefinedSymbol>> &children, bool expandGroups);
+                    const QMap<QString, QVector<DefinedSymbol>> &children, bool expandGroups, bool relationMode);
     QTreeWidgetItem *ensureGroup(QTreeWidgetItem *parent, const QString &title, bool expanded);
+    void styleLeaf(QTreeWidgetItem *item, const DefinedSymbol &sym, bool relationMode);
 
     QLabel *m_path = nullptr;
     QLabel *m_title = nullptr;

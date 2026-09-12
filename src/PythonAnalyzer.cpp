@@ -1,8 +1,7 @@
 #include "PythonAnalyzer.h"
-#include "UiConfig.h"
+#include "AnalysisUtil.h"
 
 #include <QDir>
-#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QMap>
@@ -18,11 +17,14 @@ struct Token {
     enum Type { Name, Number, String, Op, Newline, End };
     Type type = End;
     QString text;
+    int line = 1;
 };
 
 struct ImportBinding {
+    QString moduleSpec;
     QString moduleName;
     QString symbol;
+    QString resolvedPath;
 };
 
 struct LocalType {
@@ -220,6 +222,50 @@ QStringList splitImportList(QString rest)
     return rest.split(',', Qt::SkipEmptyParts);
 }
 
+int countLeadingDots(const QString &s)
+{
+    int n = 0;
+    while (n < s.size() && s[n] == '.')
+        ++n;
+    return n;
+}
+
+QString lastModuleComponent(const QString &spec)
+{
+    QString s = spec;
+    while (s.startsWith(QLatin1Char('.')))
+        s.remove(0, 1);
+    if (s.isEmpty())
+        return {};
+    return s.split(QLatin1Char('.')).last();
+}
+
+QString resolveRelativePyPath(const QString &consumerPath, const QString &spec)
+{
+    if (!spec.startsWith(QLatin1Char('.')))
+        return {};
+    const int dots = countLeadingDots(spec);
+    const QString rest = spec.mid(dots);
+    if (rest.isEmpty())
+        return {};
+    QDir dir(QFileInfo(consumerPath).absolutePath());
+    for (int i = 1; i < dots; ++i) {
+        if (!dir.cdUp())
+            break;
+    }
+    QString rel = rest;
+    rel.replace(QLatin1Char('.'), QLatin1Char('/'));
+    return QFileInfo(dir.filePath(rel + QStringLiteral(".py"))).absoluteFilePath();
+}
+
+QString sameDirPyPath(const QString &consumerPath, const QString &moduleName)
+{
+    if (moduleName.isEmpty())
+        return {};
+    QDir dir(QFileInfo(consumerPath).absolutePath());
+    return QFileInfo(dir.filePath(moduleName + QStringLiteral(".py"))).absoluteFilePath();
+}
+
 struct ParsedFile {
     FileNode node;
     QMap<QString, ImportBinding> imports;
@@ -231,7 +277,10 @@ ParsedFile parsePythonFile(const QString &path)
     QFileInfo info(path);
     parsed.node.path = info.absoluteFilePath();
     parsed.node.fileName = info.fileName();
-    parsed.node.moduleName = info.completeBaseName();
+    if (info.fileName() == QLatin1String("__init__.py"))
+        parsed.node.moduleName = info.dir().dirName();
+    else
+        parsed.node.moduleName = info.completeBaseName();
 
     const QStringList lines = readFile(path).split('\n');
     QVector<Scope> stack;
@@ -266,7 +315,7 @@ ParsedFile parsePythonFile(const QString &path)
                     ++p;
                     const QString part = takeIdent(line, p);
                     if (!part.isEmpty())
-                        mod = part;
+                        mod += QLatin1Char('.') + part;
                 }
             }
             skipSpaces(line, p);
@@ -274,6 +323,7 @@ ParsedFile parsePythonFile(const QString &path)
                 continue;
             p += 6;
             const QString rest = line.mid(p);
+            const bool fromDotOnly = countLeadingDots(mod) == mod.size() && !mod.isEmpty();
             for (QString part : splitImportList(rest)) {
                 part = part.trimmed();
                 if (part.isEmpty() || part == QLatin1String("*"))
@@ -285,7 +335,21 @@ ParsedFile parsePythonFile(const QString &path)
                     orig = part.left(asIdx).trimmed();
                     local = part.mid(asIdx + 4).trimmed();
                 }
-                parsed.imports.insert(local, ImportBinding{mod, orig});
+                ImportBinding b;
+                b.moduleSpec = fromDotOnly ? (mod + orig) : mod;
+                if (fromDotOnly) {
+                    b.moduleName = orig.split(QLatin1Char('.')).last();
+                    b.symbol = QString();
+                    b.resolvedPath = resolveRelativePyPath(path, b.moduleSpec);
+                } else {
+                    b.moduleName = lastModuleComponent(mod);
+                    b.symbol = orig;
+                    if (mod.startsWith(QLatin1Char('.')))
+                        b.resolvedPath = resolveRelativePyPath(path, mod);
+                    else
+                        b.resolvedPath = sameDirPyPath(path, b.moduleName);
+                }
+                parsed.imports.insert(local, b);
             }
             continue;
         }
@@ -305,7 +369,15 @@ ParsedFile parsePythonFile(const QString &path)
                 } else {
                     local = spec.split('.').last();
                 }
-                parsed.imports.insert(local, ImportBinding{spec.split('.').last(), QString()});
+                ImportBinding b;
+                b.moduleSpec = spec;
+                b.moduleName = spec.split('.').last();
+                b.symbol = QString();
+                if (spec.startsWith(QLatin1Char('.')))
+                    b.resolvedPath = resolveRelativePyPath(path, spec);
+                else
+                    b.resolvedPath = sameDirPyPath(path, b.moduleName);
+                parsed.imports.insert(local, b);
             }
             continue;
         }
@@ -322,6 +394,7 @@ ParsedFile parsePythonFile(const QString &path)
             sym.qualifiedName = sym.parentQualified.isEmpty() ? name : (sym.parentQualified + QLatin1Char('.') + name);
             sym.kind = SymbolKind::Class;
             sym.display = QStringLiteral("class %1").arg(sym.qualifiedName);
+            sym.line = li + 1;
             addSymbol(parsed.node, sym);
             Scope sc;
             sc.indent = indent;
@@ -352,6 +425,7 @@ ParsedFile parsePythonFile(const QString &path)
             sym.kind = SymbolKind::Function;
             sym.parameters = parseParamList(params);
             sym.display = formatFunctionDisplay(sym.qualifiedName, sym.parameters);
+            sym.line = li + 1;
             addSymbol(parsed.node, sym);
             for (const QString &param : sym.parameters) {
                 DefinedSymbol var;
@@ -360,6 +434,7 @@ ParsedFile parsePythonFile(const QString &path)
                 var.qualifiedName = sym.qualifiedName + QLatin1Char('.') + param;
                 var.kind = SymbolKind::Variable;
                 var.display = param;
+                var.line = li + 1;
                 addSymbol(parsed.node, var);
             }
             Scope sc;
@@ -380,6 +455,7 @@ ParsedFile parsePythonFile(const QString &path)
             var.qualifiedName = var.parentQualified.isEmpty() ? name : (var.parentQualified + QLatin1Char('.') + name);
             var.kind = SymbolKind::Variable;
             var.display = display;
+            var.line = li + 1;
             addSymbol(parsed.node, var);
         };
 
@@ -478,10 +554,16 @@ QVector<Token> tokenize(const QString &src)
     QVector<Token> tokens;
     const QString cleaned = stripCommentsAndKeepStrings(src);
     int i = 0;
-    auto push = [&](Token::Type t, const QString &text) { tokens.push_back({t, text}); };
+    int line = 1;
+    auto push = [&](Token::Type t, const QString &text) { tokens.push_back({t, text, line}); };
     while (i < cleaned.size()) {
         const QChar c = cleaned[i];
-        if (c == '\n' || c.isSpace()) {
+        if (c == '\n') {
+            ++line;
+            ++i;
+            continue;
+        }
+        if (c.isSpace()) {
             ++i;
             continue;
         }
@@ -547,30 +629,138 @@ const DefinedSymbol *findByQualified(const FileNode &file, const QString &qualif
     return nullptr;
 }
 
-void addUsed(QVector<DefinedSymbol> &used, const DefinedSymbol &sym)
+void addUsed(QVector<DefinedSymbol> &used, const DefinedSymbol &sym, int useLine, bool recordUse)
 {
-    for (const DefinedSymbol &u : used) {
-        if (u.qualifiedName == sym.qualifiedName && u.kind == sym.kind)
+    auto record = [&](DefinedSymbol &u) {
+        if (!recordUse || useLine <= 0)
             return;
+        if (u.kind != SymbolKind::Class && u.kind != SymbolKind::Function)
+            return;
+        if (!u.useLines.contains(useLine))
+            u.useLines.push_back(useLine);
+    };
+    for (DefinedSymbol &u : used) {
+        if (u.qualifiedName == sym.qualifiedName && u.kind == sym.kind) {
+            record(u);
+            return;
+        }
     }
-    used.push_back(sym);
+    DefinedSymbol copy = sym;
+    copy.useLines.clear();
+    record(copy);
+    used.push_back(copy);
 }
 
-void addUsedWithAncestors(QVector<DefinedSymbol> &used, const FileNode &provider, const DefinedSymbol &sym)
+void addUsedWithAncestors(QVector<DefinedSymbol> &used, const FileNode &provider, const DefinedSymbol &sym,
+                          int useLine)
 {
-    addUsed(used, sym);
+    addUsed(used, sym, useLine, true);
     QString parent = sym.parentQualified;
     while (!parent.isEmpty()) {
         const DefinedSymbol *anc = findByQualified(provider, parent);
         if (!anc)
             break;
-        addUsed(used, *anc);
+        addUsed(used, *anc, 0, false);
         parent = anc->parentQualified;
     }
 }
 
-void analyzeUsages(const ParsedFile &consumer, const QMap<QString, FileNode *> &modules,
-                   QMap<QString, QVector<DefinedSymbol>> &usedByProvider)
+FileNode *providerFor(const ImportBinding &b, const QMap<QString, FileNode *> &byPath,
+                      const QMap<QString, FileNode *> &byName)
+{
+    if (!b.resolvedPath.isEmpty()) {
+        FileNode *n = byPath.value(b.resolvedPath, nullptr);
+        if (n)
+            return n;
+    }
+    return byName.value(b.moduleName, nullptr);
+}
+
+bool pathIsUnder(const QString &filePath, const QString &dirPath)
+{
+    const QString file = QFileInfo(filePath).absoluteFilePath();
+    const QString dir = QDir(dirPath).absolutePath();
+    return file.startsWith(dir + QLatin1Char('/'));
+}
+
+QString findModuleOrPackage(const QString &consumerPath, const QString &rootDir, const QString &spec)
+{
+    if (spec.isEmpty() || spec.startsWith(QLatin1Char('.')))
+        return {};
+    QString rel = spec;
+    rel.replace(QLatin1Char('.'), QDir::separator());
+    QDir dir(QFileInfo(consumerPath).absolutePath());
+    const QString root = QDir(rootDir).absolutePath();
+    while (true) {
+        const QString py = QFileInfo(dir.filePath(rel + QStringLiteral(".py"))).absoluteFilePath();
+        if (QFileInfo::exists(py) && QFileInfo(py).isFile())
+            return py;
+        const QString pkg = QFileInfo(dir.filePath(rel)).absoluteFilePath();
+        if (QFileInfo(pkg).isDir())
+            return pkg;
+        if (dir.absolutePath() == root)
+            break;
+        if (!dir.cdUp())
+            break;
+    }
+    return {};
+}
+
+FileNode *findDefiningFile(const QString &packageDir, const QString &symbol, QVector<ParsedFile> &parsed)
+{
+    if (symbol.isEmpty())
+        return nullptr;
+    FileNode *initHit = nullptr;
+    for (ParsedFile &p : parsed) {
+        if (!pathIsUnder(p.node.path, packageDir))
+            continue;
+        if (!findByNameParent(p.node, symbol, QString()))
+            continue;
+        if (p.node.fileName == QLatin1String("__init__.py"))
+            initHit = &p.node;
+        else
+            return &p.node;
+    }
+    return initHit;
+}
+
+void refineImports(ParsedFile &consumer, const QString &rootDir, QVector<ParsedFile> &parsed,
+                   const QMap<QString, FileNode *> &byPath)
+{
+    for (auto it = consumer.imports.begin(); it != consumer.imports.end(); ++it) {
+        ImportBinding &b = it.value();
+        const QString spec = b.moduleSpec.isEmpty() ? b.moduleName : b.moduleSpec;
+        if (spec.startsWith(QLatin1Char('.'))) {
+            if (!b.symbol.isEmpty() && !b.resolvedPath.isEmpty()) {
+                const QFileInfo fi(b.resolvedPath);
+                if (fi.fileName() == QLatin1String("__init__.py")) {
+                    if (FileNode *def = findDefiningFile(fi.absolutePath(), b.symbol, parsed))
+                        b.resolvedPath = def->path;
+                }
+            }
+            continue;
+        }
+        const QString found = findModuleOrPackage(consumer.node.path, rootDir, spec);
+        if (found.isEmpty())
+            continue;
+        if (found.endsWith(QLatin1String(".py"))) {
+            b.resolvedPath = QFileInfo(found).absoluteFilePath();
+            continue;
+        }
+        if (!b.symbol.isEmpty()) {
+            if (FileNode *def = findDefiningFile(found, b.symbol, parsed))
+                b.resolvedPath = def->path;
+        } else {
+            const QString initPath =
+                QFileInfo(QDir(found).filePath(QStringLiteral("__init__.py"))).absoluteFilePath();
+            if (byPath.contains(initPath))
+                b.resolvedPath = initPath;
+        }
+    }
+}
+
+void analyzeUsages(const ParsedFile &consumer, const QMap<QString, FileNode *> &byPath,
+                   const QMap<QString, FileNode *> &byName, QMap<QString, QVector<DefinedSymbol>> &usedByProvider)
 {
     const QVector<Token> tokens = tokenize(dropImportLines(readFile(consumer.node.path)));
     QMap<QString, LocalType> locals;
@@ -614,55 +804,58 @@ void analyzeUsages(const ParsedFile &consumer, const QMap<QString, FileNode *> &
         }
     }
 
-    auto markAttr = [&](const QString &base, const QString &attr) {
+    auto markAttr = [&](const QString &base, const QString &attr, int line) {
         auto imp = consumer.imports.find(base);
         if (imp != consumer.imports.end()) {
-            FileNode *provider = modules.value(imp->moduleName, nullptr);
+            FileNode *provider = providerFor(*imp, byPath, byName);
             if (!provider)
                 return;
             if (imp->symbol.isEmpty()) {
                 if (const DefinedSymbol *sym = findByNameParent(*provider, attr, QString()))
-                    addUsedWithAncestors(usedByProvider[provider->path], *provider, *sym);
+                    addUsedWithAncestors(usedByProvider[provider->path], *provider, *sym, line);
             }
             return;
         }
         if (locals.contains(base)) {
             const LocalType t = locals.value(base);
-            FileNode *provider = modules.value(t.moduleName, nullptr);
+            FileNode *provider = byName.value(t.moduleName, nullptr);
+            if (!provider) {
+                for (auto it = consumer.imports.begin(); it != consumer.imports.end(); ++it) {
+                    if (it->moduleName == t.moduleName) {
+                        provider = providerFor(*it, byPath, byName);
+                        break;
+                    }
+                }
+            }
             if (!provider)
                 return;
             if (const DefinedSymbol *cls = findByNameParent(*provider, t.className, QString()))
-                addUsedWithAncestors(usedByProvider[provider->path], *provider, *cls);
+                addUsedWithAncestors(usedByProvider[provider->path], *provider, *cls, 0);
             if (const DefinedSymbol *method = findByNameParent(*provider, attr, t.className))
-                addUsedWithAncestors(usedByProvider[provider->path], *provider, *method);
+                addUsedWithAncestors(usedByProvider[provider->path], *provider, *method, line);
             else if (const DefinedSymbol *var = findByNameParent(*provider, attr, t.className))
-                addUsedWithAncestors(usedByProvider[provider->path], *provider, *var);
+                addUsedWithAncestors(usedByProvider[provider->path], *provider, *var, line);
         }
     };
 
     for (auto it = consumer.imports.begin(); it != consumer.imports.end(); ++it) {
         if (it->symbol.isEmpty())
             continue;
-        FileNode *provider = modules.value(it->moduleName, nullptr);
+        FileNode *provider = providerFor(*it, byPath, byName);
         if (!provider)
             continue;
-        bool mentioned = false;
         for (const Token &tk : tokens) {
             if (tk.type == Token::Name && tk.text == it.key()) {
-                mentioned = true;
-                break;
+                if (const DefinedSymbol *sym = findByNameParent(*provider, it->symbol, QString()))
+                    addUsedWithAncestors(usedByProvider[provider->path], *provider, *sym, tk.line);
             }
         }
-        if (!mentioned)
-            continue;
-        if (const DefinedSymbol *sym = findByNameParent(*provider, it->symbol, QString()))
-            addUsedWithAncestors(usedByProvider[provider->path], *provider, *sym);
     }
 
     for (int i = 0; i + 2 < tokens.size(); ++i) {
         if (tokens[i].type == Token::Name && tokens[i + 1].type == Token::Op && tokens[i + 1].text == QLatin1String(".")
             && tokens[i + 2].type == Token::Name)
-            markAttr(tokens[i].text, tokens[i + 2].text);
+            markAttr(tokens[i].text, tokens[i + 2].text, tokens[i].line);
     }
 
     for (int i = 0; i + 1 < tokens.size(); ++i) {
@@ -674,10 +867,10 @@ void analyzeUsages(const ParsedFile &consumer, const QMap<QString, FileNode *> &
             && tokens[i - 2].type == Token::Name) {
             auto imp = consumer.imports.find(tokens[i - 2].text);
             if (imp != consumer.imports.end() && imp->symbol.isEmpty()) {
-                FileNode *provider = modules.value(imp->moduleName, nullptr);
+                FileNode *provider = providerFor(*imp, byPath, byName);
                 if (provider) {
                     if (const DefinedSymbol *cls = findByNameParent(*provider, tokens[i].text, QString()))
-                        addUsedWithAncestors(usedByProvider[provider->path], *provider, *cls);
+                        addUsedWithAncestors(usedByProvider[provider->path], *provider, *cls, tokens[i].line);
                 }
             }
         }
@@ -689,44 +882,40 @@ void analyzeUsages(const ParsedFile &consumer, const QMap<QString, FileNode *> &
 AnalysisResult PythonAnalyzer::analyzeDirectory(const QString &rootDir)
 {
     AnalysisResult result;
-    const UiConfig &cfg = UiConfig::get();
-    QStringList globs = cfg.scanGlobs;
-    if (globs.isEmpty())
-        globs << QStringLiteral("*.py");
-    QDirIterator it(rootDir, globs, QDir::Files, QDirIterator::Subdirectories);
     QVector<ParsedFile> parsed;
-    while (it.hasNext()) {
-        const QString path = it.next();
-        const QString norm = QDir::fromNativeSeparators(path);
-        bool skip = false;
-        for (const QString &part : cfg.skipPathParts) {
-            if (norm.contains(QLatin1Char('/') + part + QLatin1Char('/')) || norm.endsWith(QLatin1Char('/') + part)) {
-                skip = true;
-                break;
-            }
-        }
-        if (skip)
+    for (const QString &path : AnalysisUtil::scanFiles(rootDir)) {
+        if (!AnalysisUtil::isPythonFile(path))
             continue;
         parsed.push_back(parsePythonFile(path));
     }
 
-    QMap<QString, FileNode *> modules;
+    QMap<QString, FileNode *> byName;
+    QMap<QString, FileNode *> byPath;
+    for (ParsedFile &p : parsed) {
+        byPath.insert(p.node.path, &p.node);
+        if (p.node.fileName == QLatin1String("__init__.py")) {
+            if (!byName.contains(p.node.moduleName))
+                byName.insert(p.node.moduleName, &p.node);
+        } else {
+            byName.insert(p.node.moduleName, &p.node);
+        }
+    }
     for (ParsedFile &p : parsed)
-        modules.insert(p.node.moduleName, &p.node);
+        refineImports(p, rootDir, parsed, byPath);
 
     QMap<QPair<QString, QString>, QVector<DefinedSymbol>> edgeUsed;
     for (const ParsedFile &consumer : parsed) {
         QMap<QString, QVector<DefinedSymbol>> usedByProvider;
-        analyzeUsages(consumer, modules, usedByProvider);
+        analyzeUsages(consumer, byPath, byName, usedByProvider);
 
-        QSet<QString> importedModules;
-        for (const ImportBinding &b : consumer.imports)
-            importedModules.insert(b.moduleName);
+        QSet<FileNode *> importedProviders;
+        for (const ImportBinding &b : consumer.imports) {
+            FileNode *provider = providerFor(b, byPath, byName);
+            if (provider && provider->path != consumer.node.path)
+                importedProviders.insert(provider);
+        }
 
-        for (const QString &mod : importedModules) {
-            FileNode *provider = modules.value(mod, nullptr);
-            if (!provider || provider->path == consumer.node.path)
-                continue;
+        for (FileNode *provider : importedProviders) {
             const QVector<DefinedSymbol> used = usedByProvider.value(provider->path);
             if (used.isEmpty())
                 continue;
@@ -744,71 +933,11 @@ AnalysisResult PythonAnalyzer::analyzeDirectory(const QString &rootDir)
         rel.fromFileName = QFileInfo(rel.fromPath).fileName();
         rel.toFileName = QFileInfo(rel.toPath).fileName();
         rel.used = it.value();
+        for (DefinedSymbol &s : rel.used)
+            std::sort(s.useLines.begin(), s.useLines.end());
         result.relations.push_back(rel);
     }
 
-    std::sort(result.files.begin(), result.files.end(), [](const FileNode &a, const FileNode &b) {
-        return a.fileName < b.fileName;
-    });
-
-    QMap<QString, int> indeg;
-    QMap<QString, QStringList> outs;
-    for (const FileNode &f : result.files)
-        indeg[f.path] = 0;
-    for (const FileRelation &rel : result.relations) {
-        outs[rel.fromPath] << rel.toPath;
-        if (indeg.contains(rel.toPath))
-            indeg[rel.toPath] += 1;
-    }
-    QMap<QString, int> rank;
-    QStringList ready;
-    for (auto it = indeg.begin(); it != indeg.end(); ++it) {
-        if (it.value() == 0)
-            ready << it.key();
-    }
-    while (!ready.isEmpty()) {
-        const QString u = ready.takeFirst();
-        for (const QString &v : outs.value(u)) {
-            rank[v] = qMax(rank.value(v, 0), rank.value(u) + 1);
-            indeg[v] -= 1;
-            if (indeg[v] == 0)
-                ready << v;
-        }
-    }
-    std::sort(result.relations.begin(), result.relations.end(), [&](const FileRelation &a, const FileRelation &b) {
-        const int ra = rank.value(a.fromPath, 0);
-        const int rb = rank.value(b.fromPath, 0);
-        if (ra != rb)
-            return ra < rb;
-        if (a.fromFileName != b.fromFileName)
-            return a.fromFileName < b.fromFileName;
-        return a.toFileName < b.toFileName;
-    });
-
-    QSet<QString> ignoredNames;
-    for (const QString &name : cfg.ignoredFileNames)
-        ignoredNames.insert(name);
-    QSet<QString> connected;
-    for (const FileRelation &rel : result.relations) {
-        connected.insert(rel.fromPath);
-        connected.insert(rel.toPath);
-    }
-    QVector<FileNode> files;
-    QSet<QString> keptPaths;
-    for (const FileNode &file : result.files) {
-        if (ignoredNames.contains(file.fileName))
-            continue;
-        if (cfg.showOnlyConnectedFiles && !connected.contains(file.path))
-            continue;
-        files.push_back(file);
-        keptPaths.insert(file.path);
-    }
-    result.files = files;
-    QVector<FileRelation> rels;
-    for (const FileRelation &rel : result.relations) {
-        if (keptPaths.contains(rel.fromPath) && keptPaths.contains(rel.toPath))
-            rels.push_back(rel);
-    }
-    result.relations = rels;
+    AnalysisUtil::finalize(result);
     return result;
 }

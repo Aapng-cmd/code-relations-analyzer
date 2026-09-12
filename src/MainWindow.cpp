@@ -4,7 +4,7 @@
 #include "GraphView.h"
 #include "I18n.h"
 #include "InfoPanel.h"
-#include "PythonAnalyzer.h"
+#include "ProjectAnalyzer.h"
 #include "SettingsDialog.h"
 #include "Theme.h"
 
@@ -51,6 +51,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(m_graph, &GraphView::relationSelected, m_info, &InfoPanel::showRelation);
     connect(m_graph, &GraphView::fileSelected, m_info, &InfoPanel::showFile);
+    connect(m_graph, &GraphView::selectionCleared, m_info, &InfoPanel::clearInfo);
+    connect(m_graph, &GraphView::statusMessage, this, [this](const QString &text) {
+        if (!text.isEmpty())
+            statusBar()->showMessage(text);
+    });
     connect(&AppConfig::instance(), &AppConfig::themeChanged, this, &MainWindow::applyTheme);
     connect(&AppConfig::instance(), &AppConfig::languageChanged, this, &MainWindow::retranslate);
 
@@ -75,14 +80,14 @@ void MainWindow::openSettings()
 void MainWindow::loadDirectory(const QString &dir)
 {
     m_lastDir = dir;
-    applyAnalysis(PythonAnalyzer::analyzeDirectory(dir));
+    applyAnalysis(ProjectAnalyzer::analyzeDirectory(dir));
     m_statusKind = QStringLiteral("scanned");
     retranslate();
 }
 
 void MainWindow::applyAnalysis(const AnalysisResult &result)
 {
-    m_graph->setAnalysis(result);
+    m_graph->setAnalysis(result, m_lastDir);
     m_info->clearInfo();
 }
 

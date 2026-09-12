@@ -13,12 +13,15 @@ struct DefinedSymbol {
     SymbolKind kind = SymbolKind::Function;
     QString parentQualified;
     QStringList parameters;
+    int line = 0;
+    QVector<int> useLines;
 };
 
 struct FileNode {
     QString path;
     QString fileName;
     QString moduleName;
+    QString comment;
     QVector<DefinedSymbol> symbols;
 };
 
@@ -28,6 +31,8 @@ struct FileRelation {
     QString fromFileName;
     QString toFileName;
     QVector<DefinedSymbol> used;
+    bool fictitious = false;
+    QString comment;
 };
 
 struct AnalysisResult {

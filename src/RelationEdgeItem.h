@@ -14,8 +14,10 @@ public:
                      QGraphicsItem *parent = nullptr);
 
     const FileRelation &relation() const { return m_relation; }
+    void setComment(const QString &comment);
     FileNodeItem *fromNode() const { return m_from; }
     FileNodeItem *toNode() const { return m_to; }
+    void setCurveOffset(qreal offset) { m_curveOffset = offset; }
     void updatePath();
     void updateVisibility();
 
@@ -31,4 +33,5 @@ private:
     FileNodeItem *m_from;
     FileNodeItem *m_to;
     FileRelation m_relation;
+    qreal m_curveOffset = 40;
 };

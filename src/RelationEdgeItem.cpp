@@ -11,6 +11,8 @@
 #include <QStyleOptionGraphicsItem>
 #include <QtMath>
 
+#include <cmath>
+
 namespace {
 
 QPointF borderPoint(const QRectF &rect, const QPointF &from, const QPointF &to)
@@ -51,11 +53,17 @@ RelationEdgeItem::RelationEdgeItem(FileNodeItem *from, FileNodeItem *to, const F
     , m_to(to)
     , m_relation(relation)
 {
-    setZValue(2);
+    setZValue(0);
     setFlag(ItemIsSelectable, true);
     setCursor(QCursor(Qt::PointingHandCursor));
     setAcceptHoverEvents(true);
     updatePath();
+}
+
+void RelationEdgeItem::setComment(const QString &comment)
+{
+    m_relation.comment = comment.trimmed();
+    update();
 }
 
 void RelationEdgeItem::updateVisibility()
@@ -75,9 +83,16 @@ void RelationEdgeItem::updatePath()
     const QPointF bc = bRect.center();
     const QPointF a = borderPoint(aRect, ac, bc);
     const QPointF b = borderPoint(bRect, bc, ac);
+    QPointF delta = b - a;
+    const qreal len = std::hypot(delta.x(), delta.y());
+    QPointF normal(0, -1);
+    if (len > 1.0)
+        normal = QPointF(-delta.y() / len, delta.x() / len);
+    const QPointF c1 = a + delta / 3.0 + normal * m_curveOffset;
+    const QPointF c2 = a + delta * (2.0 / 3.0) + normal * m_curveOffset;
 
     QPainterPath path(a);
-    path.lineTo(b);
+    path.cubicTo(c1, c2, b);
     setPath(path);
 }
 
@@ -99,12 +114,16 @@ void RelationEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *
     const UiConfig &u = UiConfig::get();
     QPen outline(c.graphBg, sel ? u.edgePenWidthSelected + 3.5 : u.edgePenWidth + 3.4);
     outline.setCapStyle(Qt::RoundCap);
+    if (m_relation.fictitious)
+        outline.setStyle(Qt::DashLine);
     painter->setPen(outline);
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(path());
 
     QPen pen(color, sel ? u.edgePenWidthSelected : u.edgePenWidth);
     pen.setCapStyle(Qt::RoundCap);
+    if (m_relation.fictitious)
+        pen.setStyle(Qt::DashLine);
     painter->setPen(pen);
     painter->drawPath(path());
 
@@ -126,7 +145,11 @@ void RelationEdgeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *
     painter->drawPolygon(arrow);
 
     const QPointF mid = p.pointAtPercent(0.5);
-    const QString label = QStringLiteral("%1 → %2").arg(m_relation.fromFileName, m_relation.toFileName);
+    QString label = QStringLiteral("%1 → %2").arg(m_relation.fromFileName, m_relation.toFileName);
+    if (m_relation.fictitious && !m_relation.comment.isEmpty())
+        label = m_relation.comment;
+    else if (m_relation.fictitious)
+        label = QStringLiteral("%1 ⇢ %2").arg(m_relation.fromFileName, m_relation.toFileName);
     QFont font = painter->font();
     font.setPointSize(UiConfig::get().edgeLabelPointSize);
     font.setBold(true);

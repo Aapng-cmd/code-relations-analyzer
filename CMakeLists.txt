@@ -15,7 +15,11 @@ set(SOURCES
     src/I18n.cpp
     src/AppConfig.cpp
     src/SettingsDialog.cpp
+    src/AnalysisUtil.cpp
+    src/GraphAnnotations.cpp
     src/PythonAnalyzer.cpp
+    src/CppAnalyzer.cpp
+    src/ProjectAnalyzer.cpp
     src/InfoPanel.cpp
     src/FileNodeItem.cpp
     src/RelationEdgeItem.cpp
@@ -31,7 +35,11 @@ set(HEADERS
     src/AppConfig.h
     src/SettingsDialog.h
     src/Model.h
+    src/AnalysisUtil.h
+    src/GraphAnnotations.h
     src/PythonAnalyzer.h
+    src/CppAnalyzer.h
+    src/ProjectAnalyzer.h
     src/InfoPanel.h
     src/FileNodeItem.h
     src/RelationEdgeItem.h

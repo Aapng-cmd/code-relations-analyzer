@@ -37,8 +37,12 @@ void UiConfig::load()
     UiConfig &cfg = mutableGet();
     cfg.ignoredFileNames = QStringList() << QStringLiteral("__init__.py");
     cfg.skipPathParts = QStringList() << QStringLiteral("__pycache__") << QStringLiteral(".venv")
-                                     << QStringLiteral("venv") << QStringLiteral(".git");
-    cfg.scanGlobs = QStringList() << QStringLiteral("*.py");
+                                     << QStringLiteral("venv") << QStringLiteral(".git") << QStringLiteral("build")
+                                     << QStringLiteral("CMakeFiles") << QStringLiteral(".cache")
+                                     << QStringLiteral("cmake-build-debug") << QStringLiteral("cmake-build-release");
+    cfg.scanGlobs = QStringList() << QStringLiteral("*.py") << QStringLiteral("*.c") << QStringLiteral("*.cc")
+                                 << QStringLiteral("*.cpp") << QStringLiteral("*.cxx") << QStringLiteral("*.h")
+                                 << QStringLiteral("*.hh") << QStringLiteral("*.hpp") << QStringLiteral("*.hxx");
 
     const QString path = ConfigPaths::findFile(QStringLiteral("config.json"));
     if (path.isEmpty())
@@ -72,7 +76,8 @@ void UiConfig::load()
     cfg.nodePadding = num("nodePadding", cfg.nodePadding);
     cfg.layoutXGap = num("layoutXGap", cfg.layoutXGap);
     cfg.layoutYGap = num("layoutYGap", cfg.layoutYGap);
-    cfg.scenePadding = num("scenePadding", cfg.scenePadding);
+    cfg.layoutMinGap = num("layoutMinGap", cfg.layoutMinGap);
+    cfg.scenePaddingBlocks = num("scenePaddingBlocks", cfg.scenePaddingBlocks);
     cfg.edgeHitWidth = num("edgeHitWidth", cfg.edgeHitWidth);
     cfg.edgeArrowSize = num("edgeArrowSize", cfg.edgeArrowSize);
     cfg.edgeLabelPointSize = integer("edgeLabelPointSize", cfg.edgeLabelPointSize);
@@ -82,8 +87,16 @@ void UiConfig::load()
     cfg.hiddenOpacity = num("hiddenOpacity", cfg.hiddenOpacity);
     cfg.eyeAnimationMs = integer("eyeAnimationMs", cfg.eyeAnimationMs);
     cfg.eyeSize = num("eyeSize", cfg.eyeSize);
+    cfg.eyeHitSize = num("eyeHitSize", cfg.eyeHitSize);
     cfg.eyeMargin = num("eyeMargin", cfg.eyeMargin);
     cfg.pathFontPointSize = integer("pathFontPointSize", cfg.pathFontPointSize);
+    cfg.infoPanelMargins = integer("infoPanelMargins", cfg.infoPanelMargins);
+    cfg.treeIndent = integer("treeIndent", cfg.treeIndent);
+    cfg.zoomStep = num("zoomStep", cfg.zoomStep);
+    cfg.zoomMin = num("zoomMin", cfg.zoomMin);
+    cfg.zoomMax = num("zoomMax", cfg.zoomMax);
+    cfg.edgeCurveBase = num("edgeCurveBase", cfg.edgeCurveBase);
+    cfg.edgeCurveStep = num("edgeCurveStep", cfg.edgeCurveStep);
     if (o.contains(QLatin1String("showOnlyConnectedFiles")))
         cfg.showOnlyConnectedFiles = o.value(QLatin1String("showOnlyConnectedFiles")).toBool(true);
     if (o.contains(QLatin1String("ignoredFileNames")))
